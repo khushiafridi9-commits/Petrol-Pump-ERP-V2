@@ -1,0 +1,137 @@
+.master-rates {
+  width: 95%;
+  margin: 20px auto;
+  font-family: Arial, sans-serif;
+}
+
+/* Header */
+
+.report-header{
+    border:2px solid #000;
+    padding:25px 15px;
+    margin-bottom:20px;
+    background:#fff;
+}
+
+.header-content{
+    width:100%;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+}
+
+.header-content h1{
+    width:100%;
+    margin:0;
+    text-align:center;
+    color:#0b5394;
+    font-size:34px;
+    font-weight:bold;
+}
+
+.header-content h2{
+    width:100%;
+    margin-top:10px;
+    text-align:center;
+    color:#0b5394;
+    font-size:28px;
+    font-weight:bold;
+}
+
+/* Section Title */
+
+.section-title {
+  margin-top: 20px;
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  background: #0b5394;
+  color: white;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+/* Table */
+
+.master-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 20px;
+}
+
+.master-table th,
+.master-table td {
+  border: 1px solid #000;
+  padding: 8px;
+  text-align: center;
+}
+
+.master-table th {
+  background: #d9eaf7;
+  color: #000;
+  font-weight: bold;
+}
+
+.master-table input {
+  width: 95%;
+  padding: 6px;
+  border: 1px solid #999;
+  border-radius: 4px;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.master-table input:focus {
+  outline: none;
+  border-color: #0b5394;
+}
+
+/* Button */
+
+.button-area {
+  text-align: center;
+  margin: 25px 0;
+}
+
+.save-btn {
+  background: #0b5394;
+  color: white;
+  border: none;
+  padding: 12px 30px;
+  font-size: 16px;
+  font-weight: bold;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.save-btn:hover {
+  background: #083763;
+}
+
+.header-left{
+    width:35%;
+    text-align:center;
+}
+
+
+.date-range{
+    display:flex;
+    gap:25px;
+    margin:15px 0;
+}
+
+.date-field{
+    display:flex;
+    flex-direction:column;
+}
+
+.date-field label{
+    font-weight:bold;
+    margin-bottom:5px;
+}
+
+.date-field input{
+    width:180px;
+    padding:6px;
+}

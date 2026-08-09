@@ -1,0 +1,41 @@
+.service-page{
+    min-height:100vh;
+    background:#eef2f7;
+    padding:40px;
+    font-family:Arial, Helvetica, sans-serif;
+}
+
+.service-page h1{
+    text-align:center;
+    font-size:42px;
+    color:#0B2C59;
+    margin-bottom:40px;
+}
+
+.menu-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+    gap:25px;
+    max-width:1200px;
+    margin:auto;
+}
+
+.menu-card{
+    height:120px;
+    background:#1565C0;
+    color:white;
+    text-decoration:none;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    border-radius:15px;
+    font-size:28px;
+    font-weight:bold;
+    transition:.3s;
+    box-shadow:0 8px 20px rgba(0,0,0,.15);
+}
+
+.menu-card:hover{
+    background:#0D47A1;
+    transform:translateY(-6px);
+}

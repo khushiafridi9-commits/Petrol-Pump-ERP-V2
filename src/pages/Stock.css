@@ -1,0 +1,255 @@
+.stock-page {
+  width: 95%;
+  margin: 20px auto;
+  font-family: Arial, sans-serif;
+  color: #17233c;
+}
+
+/* ================= HEADER ================= */
+
+.stock-header {
+  text-align: center;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 18px 10px;
+  margin-bottom: 15px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+
+.stock-header h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: bold;
+  color: #0b3568;
+}
+
+.stock-header h2 {
+  margin: 5px 0 0;
+  font-size: 18px;
+  color: #0b3568;
+}
+
+/* ================= FILTER ================= */
+
+.stock-filter {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  padding: 15px;
+  background: #ffffff;
+  border-radius: 14px;
+  margin-bottom: 18px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+
+.date-box {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.date-box label {
+  font-weight: bold;
+  font-size: 13px;
+  color: #17233c;
+}
+
+.date-box input {
+  height: 36px;
+  padding: 4px 10px;
+  border: 1px solid #aaa;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+/* ================= BUTTONS ================= */
+
+.stock-button {
+  height: 38px;
+  padding: 0 18px;
+  border: none;
+  border-radius: 5px;
+  background: #1769c2;
+  color: #ffffff;
+  font-weight: bold;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.stock-button:hover {
+  background: #1258a5;
+}
+
+.print-button {
+  background: #555555;
+}
+
+.print-button:hover {
+  background: #3f3f3f;
+}
+
+/* ================= STOCK SECTION ================= */
+
+.stock-section {
+  margin-bottom: 20px;
+  background: #ffffff;
+  border-radius: 15px;
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+
+/* Section Title */
+
+.stock-section h2 {
+  margin: 0;
+  padding: 10px;
+  text-align: center;
+  font-size: 17px;
+  font-weight: bold;
+  color: #0b3568;
+  background: #dcecf9;
+  border-bottom: 1px solid #b7c9d9;
+}
+
+/* ================= TABLE ================= */
+
+.stock-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.stock-table th,
+.stock-table td {
+  border: 1px solid #c7c7c7;
+  padding: 8px;
+  text-align: center;
+  font-size: 13px;
+}
+
+.stock-table th {
+  background: #0b3568;
+  color: #ffffff;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.stock-table tbody tr:nth-child(even) {
+  background: #f8fafc;
+}
+
+.stock-table tbody tr:hover {
+  background: #eef5fb;
+}
+
+/* ================= TOTAL ================= */
+
+.total-row {
+  font-weight: bold;
+  background: #dcecf9 !important;
+  border-top: 2px solid #0b3568;
+}
+
+.total-row td {
+  color: #17233c;
+  font-weight: bold;
+}
+
+/* ================= NO DATA ================= */
+
+.no-data {
+  padding: 18px !important;
+  font-weight: bold;
+  color: #777;
+}
+
+/* ================= GAIN / LOSS ================= */
+
+.gain {
+  color: #008000;
+  font-weight: bold;
+}
+
+.loss {
+  color: #d00000;
+  font-weight: bold;
+}
+
+/* ================= MOBILE ================= */
+
+@media (max-width: 768px) {
+  .stock-page {
+    width: 98%;
+    margin: 10px auto;
+  }
+
+  .stock-header h1 {
+    font-size: 20px;
+  }
+
+  .stock-header h2 {
+    font-size: 16px;
+  }
+
+  .stock-filter {
+    flex-wrap: wrap;
+  }
+
+  .date-box {
+    width: 100%;
+  }
+
+  .date-box input {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .stock-button {
+    flex: 1;
+  }
+
+  .stock-table {
+    min-width: 700px;
+  }
+
+  .stock-section {
+    overflow-x: auto;
+  }
+}
+
+/* ================= PRINT ================= */
+
+@media print {
+  .stock-filter {
+    display: none;
+  }
+
+  .stock-page {
+    width: 100%;
+    margin: 0;
+  }
+
+  .stock-header {
+    box-shadow: none;
+    border: 1px solid #000;
+    border-radius: 0;
+    margin-bottom: 10px;
+  }
+
+  .stock-section {
+    break-inside: avoid;
+    box-shadow: none;
+    border-radius: 0;
+    margin-bottom: 12px;
+  }
+
+  .stock-section h2 {
+    background: #dcecf9 !important;
+    color: #000 !important;
+  }
+
+  .stock-table th {
+    background: #0b3568 !important;
+    color: #ffffff !important;
+  }
+}
