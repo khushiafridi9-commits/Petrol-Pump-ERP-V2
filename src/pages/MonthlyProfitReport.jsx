@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import * as XLSX from "xlsx";
 import "./MonthlyProfitReport.css";
+import { supabase } from "../supabase";
 
 function MonthlyProfitReport() {
   const [fromDate, setFromDate] = useState("");
@@ -27,29 +28,32 @@ function MonthlyProfitReport() {
     setOtherIncome(savedIncome);
   }, []);
 
-  // ================= LOAD REPORTS =================
+  // ================= LOAD REPORTS ONLINE =================
 
-  const loadReports = () => {
-    const reportDates =
-      JSON.parse(
-        localStorage.getItem("DailySaleReports")
-      ) || [];
+const loadReports = async () => {
+  try {
+    const { data, error } = await supabase
+      .from("daily_sales_reports")
+      .select("report_date, report_data")
+      .order("report_date", { ascending: true });
+
+    if (error) {
+      console.error("Monthly Profit Load Error:", error);
+      alert("❌ Online Reports Load Error: " + error.message);
+      return;
+    }
 
     const filteredReports = [];
 
-    reportDates.forEach((date) => {
+    (data || []).forEach((row) => {
+      const date = row.report_date;
+
       if (
         (!fromDate || date >= fromDate) &&
         (!toDate || date <= toDate)
       ) {
-        const saved = localStorage.getItem(
-          `DailySaleReport-${date}`
-        );
-
-        if (!saved) return;
-
         try {
-          const report = JSON.parse(saved);
+          const report = row.report_data || {};
 
           // ================= FUEL PROFIT =================
 
@@ -97,34 +101,22 @@ function MonthlyProfitReport() {
           const hsdProfit =
             hsdSale *
             (
-              Number(
-                report.fuel?.HSD?.saleRate || 0
-              ) -
-              Number(
-                report.fuel?.HSD?.purchaseRate || 0
-              )
+              Number(report.fuel?.HSD?.saleRate || 0) -
+              Number(report.fuel?.HSD?.purchaseRate || 0)
             );
 
           const pmgProfit =
             pmgSale *
             (
-              Number(
-                report.fuel?.PMG?.saleRate || 0
-              ) -
-              Number(
-                report.fuel?.PMG?.purchaseRate || 0
-              )
+              Number(report.fuel?.PMG?.saleRate || 0) -
+              Number(report.fuel?.PMG?.purchaseRate || 0)
             );
 
           const svpProfit =
             svpSale *
             (
-              Number(
-                report.fuel?.SVP?.saleRate || 0
-              ) -
-              Number(
-                report.fuel?.SVP?.purchaseRate || 0
-              )
+              Number(report.fuel?.SVP?.saleRate || 0) -
+              Number(report.fuel?.SVP?.purchaseRate || 0)
             );
 
           const fuelProfit =
@@ -142,43 +134,37 @@ function MonthlyProfitReport() {
           const lubeRates =
             report.lubeRates || {};
 
-          Object.keys(lubeData).forEach(
-            (product) => {
-              const item =
-                lubeData[product] || {};
+          Object.keys(lubeData).forEach((product) => {
+            const item =
+              lubeData[product] || {};
 
-              const rate =
-                lubeRates[product] || {};
+            const rate =
+              lubeRates[product] || {};
 
-              const opening =
-                Number(item.opening || 0);
+            const opening =
+              Number(item.opening || 0);
 
-              const received =
-                Number(item.received || 0);
+            const received =
+              Number(item.received || 0);
 
-              const closing =
-                Number(item.closing || 0);
+            const closing =
+              Number(item.closing || 0);
 
-              const sale =
-                opening +
-                received -
-                closing;
+            const sale =
+              opening +
+              received -
+              closing;
 
-              const purchaseRate =
-                Number(
-                  rate.purchaseRate || 0
-                );
+            const purchaseRate =
+              Number(rate.purchaseRate || 0);
 
-              const saleRate =
-                Number(
-                  rate.saleRate || 0
-                );
+            const saleRate =
+              Number(rate.saleRate || 0);
 
-              lubricantProfit +=
-                sale *
-                (saleRate - purchaseRate);
-            }
-          );
+            lubricantProfit +=
+              sale *
+              (saleRate - purchaseRate);
+          });
 
           // ================= PRICE GAIN / LOSS =================
 
@@ -252,10 +238,7 @@ function MonthlyProfitReport() {
                 report.fuel?.[product]?.purchaseRate || 0
               );
 
-            return (
-              gainLossLiters *
-              purchaseRate
-            );
+            return gainLossLiters * purchaseRate;
           };
 
           const stockHSDGainLoss =
@@ -285,16 +268,12 @@ function MonthlyProfitReport() {
 
           let expense = 0;
 
-          if (
-            Array.isArray(report.expenses)
-          ) {
+          if (Array.isArray(report.expenses)) {
             expense =
               report.expenses.reduce(
                 (sum, item) =>
                   sum +
-                  Number(
-                    item?.amount || 0
-                  ),
+                  Number(item?.amount || 0),
                 0
               );
           } else if (
@@ -302,21 +281,15 @@ function MonthlyProfitReport() {
             typeof report.expenses === "object"
           ) {
             expense =
-              Object.values(
-                report.expenses
-              ).reduce(
+              Object.values(report.expenses).reduce(
                 (sum, item) => {
-                  if (
-                    typeof item === "number"
-                  ) {
+                  if (typeof item === "number") {
                     return sum + item;
                   }
 
                   return (
                     sum +
-                    Number(
-                      item?.amount || 0
-                    )
+                    Number(item?.amount || 0)
                   );
                 },
                 0
@@ -331,8 +304,6 @@ function MonthlyProfitReport() {
             priceGain +
             stockGainLoss -
             expense;
-
-          // ================= ADD REPORT =================
 
           filteredReports.push({
             date,
@@ -353,36 +324,19 @@ function MonthlyProfitReport() {
       }
     });
 
-    // ================= LOAD OTHER INCOME =================
-
-    const savedIncome =
-      JSON.parse(
-        localStorage.getItem(
-          "MonthlyOtherIncome"
-        )
-      ) || [];
-
-    const filteredIncome =
-      savedIncome.filter((item) => {
-        return (
-          (!fromDate ||
-            item.date >= fromDate) &&
-          (!toDate ||
-            item.date <= toDate)
-        );
-      });
-
-    setOtherIncome(filteredIncome);
-
-    // ================= SORT =================
-
-    filteredReports.sort(
-      (a, b) =>
-        a.date.localeCompare(b.date)
+    filteredReports.sort((a, b) =>
+      a.date.localeCompare(b.date)
     );
 
     setReports(filteredReports);
-  };
+
+  } catch (error) {
+    console.error("Monthly Profit Error:", error);
+    alert(
+      "❌ Something went wrong while loading monthly profit."
+    );
+  }
+};
 
   // ================= ADD OTHER INCOME =================
 

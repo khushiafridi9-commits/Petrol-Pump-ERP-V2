@@ -3,172 +3,175 @@ import "./Stock.css";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { supabase } from "../supabase";
 
 function Stock() {
   const today = new Date().toISOString().split("T")[0];
 
   const [fromDate, setFromDate] = useState(today);
   const [toDate, setToDate] = useState(today);
+  const [searchFromDate, setSearchFromDate] = useState(today);
+  const [searchToDate, setSearchToDate] = useState(today);
 
   const [reports, setReports] = useState([]);
 
-  // ================= LOAD DAILY REPORTS =================
 
-  const loadReports = () => {
-    const reportsIndex =
-      JSON.parse(
-        localStorage.getItem("DailySaleReports")
-      ) || [];
+   
+// ================= LOAD DAILY REPORTS FROM SUPABASE =================
 
-    const loadedReports = reportsIndex
-      .map((date) => {
-        const saved = localStorage.getItem(
-          `DailySaleReport-${date}`
-        );
+const loadReports = async () => {
+  try {
+    const { data, error } = await supabase
+      .from("daily_sales_reports")
+      .select("report_date, report_data")
+      .order("report_date", { ascending: true });
 
-        if (!saved) return null;
+    if (error) {
+      console.error("Supabase Load Error:", error);
+      return;
+    }
 
-        try {
-          return JSON.parse(saved);
-        } catch {
-          return null;
-        }
-      })
-      .filter(Boolean);
+    const loadedReports = (data || []).map((row) => {
+      const reportData = row.report_data || {};
+
+      return {
+        ...reportData,
+
+        reportInfo: {
+          ...(reportData.reportInfo || {}),
+          date: row.report_date,
+        },
+      };
+    });
+
+    console.log("Online Reports from Supabase:", loadedReports);
+    console.log(
+  "Report Dates:",
+  loadedReports.map((r) => r?.reportInfo?.date)
+);
 
     setReports(loadedReports);
-  };
+  } catch (error) {
+    console.error("Error loading reports:", error);
+  }
+};
 
-  useEffect(() => {
-    loadReports();
-  }, []);
+useEffect(() => {
+  loadReports();
+}, []);
+
 
   // ================= DATE FILTER =================
 
-  const filteredReports = useMemo(() => {
-    return reports
-      .filter((report) => {
-        const date = report?.reportInfo?.date;
+ const filteredReports = useMemo(() => {
+  if (!searchFromDate || !searchToDate) {
+    return reports;
+  }
 
-        if (!date) return false;
+  return reports.filter((report) => {
+    const date = report?.reportInfo?.date;
 
-        return date >= fromDate && date <= toDate;
-      })
-      .sort((a, b) => {
-        const dateA = a?.reportInfo?.date || "";
-        const dateB = b?.reportInfo?.date || "";
+    if (!date) return false;
 
-        return dateA.localeCompare(dateB);
-      });
-  }, [reports, fromDate, toDate]);
-
-  // ================= FUEL DATA =================
-
-  const getFuelRows = (product) => {
-    return filteredReports.map((report) => {
-      const date = report?.reportInfo?.date || "";
-
-      const stock =
-        report?.stockGain?.[product] || {};
-
-      const opening =
-        Number(stock.opening || 0);
-
-      const received =
-        Number(stock.receipt || 0);
-
-      const sale =
-        product === "HSD"
-          ? getHSDTotal(report)
-          : product === "PMG"
-          ? getPMGTotal(report)
-          : getSVPTotal(report);
-
-      const closing =
-        Number(stock.closing || 0);
-
-      // Physical stock gain/loss
-      // Opening + Received - Sale - Closing
-      const gainLoss =
-  closing - (opening + received - sale);
-
-      return {
-        date,
-        opening,
-        received,
-        sale,
-        closing,
-        gainLoss,
-      };
-    });
-  };
-
+    return (
+      String(date) >= String(searchFromDate) &&
+      String(date) <= String(searchToDate)
+    );
+  });
+}, [reports, searchFromDate, searchToDate]);
   // ================= HSD SALE =================
 
   const getHSDTotal = (report) => {
-    const nozzles =
-      report?.nozzles || {};
-
+    const nozzles = report?.nozzles || {};
     let total = 0;
-
     for (let i = 1; i <= 8; i++) {
-      const nozzle =
-        nozzles[`HSD-${i}`] || {};
-
-      const opening =
-        Number(nozzle.opening || 0);
-
-      const closing =
-        Number(nozzle.closing || 0);
-
+      const nozzle = nozzles[`HSD-${i}`] || {};
+      const opening = Number(nozzle.opening || 0);
+      const closing = Number(nozzle.closing || 0);
       total += closing - opening;
     }
-
     return total;
+  };
+
+  // ================= HSD TANK SALES =================
+  // HSD-1 + HSD-2  -> Tank 1
+  // HSD-3 + HSD-4  -> Tank 2
+  // HSD-5 to HSD-8 -> Tank 3
+  // Testing is NOT included here.
+
+  const getHSDTank1Sale = (report) => {
+    const nozzles = report?.nozzles || {};
+    return (
+      Number(nozzles['HSD-1']?.closing || 0) - Number(nozzles['HSD-1']?.opening || 0) +
+      Number(nozzles['HSD-2']?.closing || 0) - Number(nozzles['HSD-2']?.opening || 0)
+    );
+  };
+
+  const getHSDTank2Sale = (report) => {
+    const nozzles = report?.nozzles || {};
+    return (
+      Number(nozzles['HSD-3']?.closing || 0) - Number(nozzles['HSD-3']?.opening || 0) +
+      Number(nozzles['HSD-4']?.closing || 0) - Number(nozzles['HSD-4']?.opening || 0)
+    );
+  };
+
+  const getHSDTank3Sale = (report) => {
+    const nozzles = report?.nozzles || {};
+    return (
+      Number(nozzles['HSD-5']?.closing || 0) - Number(nozzles['HSD-5']?.opening || 0) +
+      Number(nozzles['HSD-6']?.closing || 0) - Number(nozzles['HSD-6']?.opening || 0) +
+      Number(nozzles['HSD-7']?.closing || 0) - Number(nozzles['HSD-7']?.opening || 0) +
+      Number(nozzles['HSD-8']?.closing || 0) - Number(nozzles['HSD-8']?.opening || 0)
+    );
   };
 
   // ================= PMG SALE =================
 
   const getPMGTotal = (report) => {
-    const nozzles =
-      report?.nozzles || {};
-
+    const nozzles = report?.nozzles || {};
     let total = 0;
-
     for (let i = 1; i <= 4; i++) {
-      const nozzle =
-        nozzles[`PMG-${i}`] || {};
-
-      const opening =
-        Number(nozzle.opening || 0);
-
-      const closing =
-        Number(nozzle.closing || 0);
-
+      const nozzle = nozzles[`PMG-${i}`] || {};
+      const opening = Number(nozzle.opening || 0);
+      const closing = Number(nozzle.closing || 0);
       total += closing - opening;
     }
-
     return total;
   };
 
   // ================= SVP SALE =================
 
   const getSVPTotal = (report) => {
-    const nozzles =
-      report?.nozzles || {};
-
-    const svp1 =
-      nozzles["SVP-1"] || {};
-
-    const svp2 =
-      nozzles["SVP-2"] || {};
-
+    const nozzles = report?.nozzles || {};
+    const svp1 = nozzles['SVP-1'] || {};
+    const svp2 = nozzles['SVP-2'] || {};
     return (
-      Number(svp1.closing || 0) -
-        Number(svp1.opening || 0) +
-      Number(svp2.closing || 0) -
-        Number(svp2.opening || 0)
+      Number(svp1.closing || 0) - Number(svp1.opening || 0) +
+      Number(svp2.closing || 0) - Number(svp2.opening || 0)
     );
+  };
+
+  // ================= FUEL DATA =================
+
+  const getFuelRows = (product) => {
+    return filteredReports.map((report) => {
+      const date = report?.reportInfo?.date || '';
+      const stock = report?.stockGain?.[product] || {};
+      const opening = Number(stock.opening || 0);
+      const received = Number(stock.receipt ?? stock.received ?? 0);
+
+      let sale = 0;
+      if (product === 'HSD1') sale = getHSDTank1Sale(report);
+      else if (product === 'HSD2') sale = getHSDTank2Sale(report);
+      else if (product === 'HSD3') sale = getHSDTank3Sale(report);
+      else if (product === 'PMG') sale = getPMGTotal(report);
+      else sale = getSVPTotal(report);
+
+      const closing = Number(stock.closing || 0);
+      const gainLoss = closing - (opening + received - sale);
+
+      return { date, opening, received, sale, closing, gainLoss };
+    });
   };
 
   // ================= LUBRICANT DATA =================
@@ -249,11 +252,17 @@ function Stock() {
     );
   };
 
-  const hsdRows = getFuelRows("HSD");
+  const hsd1Rows = getFuelRows("HSD1");
+  const hsd2Rows = getFuelRows("HSD2");
+  const hsd3Rows = getFuelRows("HSD3");
+
   const pmgRows = getFuelRows("PMG");
   const svpRows = getFuelRows("SVP");
 
-  const hsdTotals = getFuelTotals(hsdRows);
+  const hsd1Totals = getFuelTotals(hsd1Rows);
+  const hsd2Totals = getFuelTotals(hsd2Rows);
+  const hsd3Totals = getFuelTotals(hsd3Rows);
+
   const pmgTotals = getFuelTotals(pmgRows);
   const svpTotals = getFuelTotals(svpRows);
 
@@ -293,7 +302,7 @@ const exportExcel = () => {
   const addFuelSheet = (sheetName, title, rows, totals) => {
     const data = [
       [title],
-      [`From Date: ${fromDate}`, `To Date: ${toDate}`],
+      [`From Date: ${searchFromDate}`, `To Date: ${searchToDate}`],
       [],
       [
         "Date",
@@ -321,6 +330,7 @@ const exportExcel = () => {
         totals.gainLoss,
       ],
     ];
+    
 
     const worksheet =
       XLSX.utils.aoa_to_sheet(data);
@@ -342,10 +352,24 @@ const exportExcel = () => {
   };
 
   addFuelSheet(
-    "HSD",
-    "HSD STOCK REGISTER",
-    hsdRows,
-    hsdTotals
+    "HSD Tank 1",
+    "HSD TANK 1 STOCK REGISTER",
+    hsd1Rows,
+    hsd1Totals
+  );
+
+  addFuelSheet(
+    "HSD Tank 2",
+    "HSD TANK 2 STOCK REGISTER",
+    hsd2Rows,
+    hsd2Totals
+  );
+
+  addFuelSheet(
+    "HSD Tank 3",
+    "HSD TANK 3 STOCK REGISTER",
+    hsd3Rows,
+    hsd3Totals
   );
 
   addFuelSheet(
@@ -366,7 +390,7 @@ const exportExcel = () => {
 
   const lubricantData = [
     ["LUBRICANT STOCK REGISTER"],
-    [`From Date: ${fromDate}`, `To Date: ${toDate}`],
+    [`From Date: ${searchFromDate}`, `To Date: ${searchToDate}`],
     [],
     [
       "Date",
@@ -418,7 +442,7 @@ const exportExcel = () => {
   );
 
   const fileName =
-    `Stock_Register_${fromDate}_to_${toDate}.xlsx`;
+    `Stock_Register_${searchFromDate}_to_${searchToDate}.xlsx`;
 
   XLSX.writeFile(workbook, fileName);
 };
@@ -457,7 +481,7 @@ const exportPDF = () => {
   doc.setTextColor(0, 0, 0);
 
   doc.text(
-    `From Date: ${fromDate}    To Date: ${toDate}`,
+    `From Date: ${searchFromDate}    To Date: ${searchToDate}`,
     148,
     31,
     { align: "center" }
@@ -565,9 +589,21 @@ const exportPDF = () => {
   };
 
   addFuelPDF(
-    "HSD STOCK REGISTER",
-    hsdRows,
-    hsdTotals
+    "HSD TANK 1 STOCK REGISTER",
+    hsd1Rows,
+    hsd1Totals
+  );
+
+  addFuelPDF(
+    "HSD TANK 2 STOCK REGISTER",
+    hsd2Rows,
+    hsd2Totals
+  );
+
+  addFuelPDF(
+    "HSD TANK 3 STOCK REGISTER",
+    hsd3Rows,
+    hsd3Totals
   );
 
   addFuelPDF(
@@ -672,10 +708,33 @@ const exportPDF = () => {
   });
 
   const fileName =
-    `Stock_Register_${fromDate}_to_${toDate}.pdf`;
+    `Stock_Register_${searchFromDate}_to_${searchToDate}.pdf`;
 
   doc.save(fileName);
 };
+
+  // ================= SEARCH =================
+
+  const handleSearch = () => {
+    if (!fromDate || !toDate) {
+      alert("Please select From Date and To Date");
+      return;
+    }
+
+    if (fromDate > toDate) {
+      alert("From Date cannot be greater than To Date");
+      return;
+    }
+
+    setSearchFromDate(fromDate);
+    setSearchToDate(toDate);
+  };
+
+  // ================= PRINT =================
+
+  const handlePrint = () => {
+    window.print();
+  };
 
   // ================= RENDER TABLE =================
 
@@ -826,6 +885,7 @@ const exportPDF = () => {
           />
         </div>
 
+
         <button
           className="stock-button"
           onClick={exportExcel}
@@ -841,27 +901,50 @@ const exportPDF = () => {
         </button>
 
         <button
-          className="stock-button"
-          onClick={loadReports}
-        >
-          🔄 Refresh
-        </button>
+  className="stock-button"
+  onClick={() => {
+    loadReports();
+
+    if (fromDate && toDate && fromDate <= toDate) {
+      setSearchFromDate(fromDate);
+      setSearchToDate(toDate);
+    }
+  }}
+>
+  🔄 Refresh
+</button>
 
         <button
           className="stock-button print-button"
-          onClick={() => window.print()}
+          onClick={handlePrint}
         >
           🖨 Print
         </button>
 
       </div>
 
-      {/* ================= HSD ================= */}
+      {/* ================= HSD TANK 1 ================= */}
 
       {renderFuelTable(
-        "HSD STOCK REGISTER",
-        hsdRows,
-        hsdTotals
+        "HSD TANK 1 STOCK REGISTER",
+        hsd1Rows,
+        hsd1Totals
+      )}
+
+      {/* ================= HSD TANK 2 ================= */}
+
+      {renderFuelTable(
+        "HSD TANK 2 STOCK REGISTER",
+        hsd2Rows,
+        hsd2Totals
+      )}
+
+      {/* ================= HSD TANK 3 ================= */}
+
+      {renderFuelTable(
+        "HSD TANK 3 STOCK REGISTER",
+        hsd3Rows,
+        hsd3Totals
       )}
 
       {/* ================= PMG ================= */}

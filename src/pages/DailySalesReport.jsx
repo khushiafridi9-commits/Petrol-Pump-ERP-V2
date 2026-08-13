@@ -2,24 +2,25 @@ import "./DailySalesReport.css";
 import { useState, useEffect } from "react";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
+import { supabase } from "../supabase";
 
 const nozzleRows = [
-  { nozzle: "HSD-1", product: "HSD" },
-  { nozzle: "HSD-2", product: "HSD" },
-  { nozzle: "HSD-3", product: "HSD" },
-  { nozzle: "HSD-4", product: "HSD" },
-  { nozzle: "HSD-5", product: "HSD" },
-  { nozzle: "HSD-6", product: "HSD" },
-  { nozzle: "HSD-7", product: "HSD" },
-  { nozzle: "HSD-8", product: "HSD" },
+  { nozzle: "HSD-1", product: "HSD" },
+  { nozzle: "HSD-2", product: "HSD" },
+  { nozzle: "HSD-3", product: "HSD" },
+  { nozzle: "HSD-4", product: "HSD" },
+  { nozzle: "HSD-5", product: "HSD" },
+  { nozzle: "HSD-6", product: "HSD" },
+  { nozzle: "HSD-7", product: "HSD" },
+  { nozzle: "HSD-8", product: "HSD" },
 
-  { nozzle: "PMG-1", product: "PMG" },
-  { nozzle: "PMG-2", product: "PMG" },
-  { nozzle: "PMG-3", product: "PMG" },
-  { nozzle: "PMG-4", product: "PMG" },
+  { nozzle: "PMG-1", product: "PMG" },
+  { nozzle: "PMG-2", product: "PMG" },
+  { nozzle: "PMG-3", product: "PMG" },
+  { nozzle: "PMG-4", product: "PMG" },
 
-  { nozzle: "SVP-1", product: "SVP" },
-  { nozzle: "SVP-2", product: "SVP" }
+  { nozzle: "SVP-1", product: "SVP" },
+  { nozzle: "SVP-2", product: "SVP" }
 ];
 
 function DailySalesReport() {
@@ -27,178 +28,188 @@ function DailySalesReport() {
 
   // ================= MASTER RATES =================
 
-  const savedRates = localStorage.getItem("MasterRates");
+const savedRates = localStorage.getItem("MasterRates");
 
-  const masterRates = savedRates
-    ? JSON.parse(savedRates)
-    : {
-        fuel: {
-          fromDate: "",
-          tillDate: "",
-          rates: [],
-        },
-        lubricant: {
-          fromDate: "",
-          tillDate: "",
-          rates: [],
-        },
-      };
+const masterRates = savedRates
+  ? JSON.parse(savedRates)
+  : {
+      fuel: {
+        fromDate: "",
+        tillDate: "",
+        rates: [],
+      },
+      lubricant: {
+        fromDate: "",
+        tillDate: "",
+        rates: [],
+      },
+    };
 
   // ================= DATE =================
 
-  const today = new Date().toISOString().split("T")[0];
+const today = new Date().toISOString().split("T")[0];
 
-  const [reportInfo, setReportInfo] = useState({
-    date: today,
-    shiftIncharge: "",
-  });
+const [reportInfo, setReportInfo] = useState({
+  date: today,
+  shiftIncharge: "",
+});
 
-  // ================= SALES =================
+// ================= SALES =================
 
-  const [sales, setSales] = useState({
-    HSD: 0,
-    PMG: 0,
-    SVP: 0,
-  });
+const [sales, setSales] = useState({
+  HSD: 0,
+  PMG: 0,
+  SVP: 0,
+});
 
-  const [nozzles, setNozzles] = useState({});
+const [nozzles, setNozzles] = useState({});
+const [tastingHSD, setTastingHSD] = useState(0);
+const [tastingPMG, setTastingPMG] = useState(0);
+const [tastingSVP, setTastingSVP] = useState(0);
 
-  // ================= FUEL RATES =================
+const [stockGain, setStockGain] = useState({
+  HSD1: {
+    opening: 0,
+    receipt: 0,
+    closing: 0,
+  },
+  HSD2: {
+    opening: 0,
+    receipt: 0,
+    closing: 0,
+  },
+  HSD3: {
+    opening: 0,
+    receipt: 0,
+    closing: 0,
+  },
+  PMG: {
+    opening: 0,
+    receipt: 0,
+    closing: 0,
+  },
+  SVP: {
+    opening: 0,
+    receipt: 0,
+    closing: 0,
+  },
+});
 
-  const [fuel, setFuel] = useState({
-    HSD: {
-      purchaseRate: "",
-      saleRate: "",
-    },
-    PMG: {
-      purchaseRate: "",
-      saleRate: "",
-    },
-    SVP: {
-      purchaseRate: "",
-      saleRate: "",
-    },
-  });
 
-  // ================= LUBRICANT =================
+// ================= FUEL RATES =================
 
-  const [lubricant, setLubricant] = useState({
-    sale: 0,
-    purchaseRate: 0,
-    saleRate: 0,
-  });
+const [fuel, setFuel] = useState({
+  HSD: {
+    purchaseRate: "",
+    saleRate: "",
+  },
+  PMG: {
+    purchaseRate: "",
+    saleRate: "",
+  },
+  SVP: {
+    purchaseRate: "",
+    saleRate: "",
+  },
+});
 
-  const [lubeData, setLubeData] = useState({});
-  const [lubeRates, setLubeRates] = useState({});
+// ================= LUBRICANT =================
 
-  // Load lubricant closing
-  useEffect(() => {
-    const savedClosing = JSON.parse(
-      localStorage.getItem("lubricantClosing")
-    );
+const [lubricant, setLubricant] = useState({
+  sale: 0,
+  purchaseRate: 0,
+  saleRate: 0,
+});
 
-    if (savedClosing) {
-      setLubeData(savedClosing);
-    }
-  }, []);
+const [lubeData, setLubeData] = useState({});
+const [lubeRates, setLubeRates] = useState({});
 
-  // ================= FUEL MASTER RATES =================
+// ================= FUEL MASTER RATES ONLINE =================
 
-  useEffect(() => {
+useEffect(() => {
+  const loadFuelRates = async () => {
+    if (!reportInfo.date) return;
 
-    const savedRates = localStorage.getItem("MasterRates");
+    const { data, error } = await supabase
+      .from("master_rates")
+      .select("*")
+      .eq("category", "fuel");
 
-    if (!savedRates || !reportInfo.date) return;
-
-    const masterRatesData = JSON.parse(savedRates);
-
-    const reportDate = new Date(reportInfo.date);
-
-    if (
-      !masterRatesData.fuel ||
-      !masterRatesData.fuel.fromDate ||
-      !masterRatesData.fuel.tillDate ||
-      !Array.isArray(masterRatesData.fuel.rates)
-    ) {
+    if (error) {
+      console.error("Fuel Rates Load Error:", error);
       return;
     }
 
-    const fuelFrom = new Date(
-      masterRatesData.fuel.fromDate
-    );
-
-    const fuelTill = new Date(
-      masterRatesData.fuel.tillDate
-    );
-
-    if (reportDate >= fuelFrom && reportDate <= fuelTill) {
-
-      const updatedFuel = {};
-
-      masterRatesData.fuel.rates.forEach((item) => {
-
-        updatedFuel[item.product] = {
-          purchaseRate: item.purchaseRate,
-          saleRate: item.saleRate,
-        };
-
-      });
-
-      setFuel((prev) => ({
-        ...prev,
-        ...updatedFuel,
-      }));
-    }
-
-  }, [reportInfo.date]);
-
-  // ================= LUBRICANT MASTER RATES =================
-
-  useEffect(() => {
-
-    const savedRates = localStorage.getItem("MasterRates");
-
-    if (!savedRates || !reportInfo.date) return;
-
-    const masterRatesData = JSON.parse(savedRates);
-
     const reportDate = new Date(reportInfo.date);
 
-    if (
-      !masterRatesData.lubricant ||
-      !masterRatesData.lubricant.fromDate ||
-      !masterRatesData.lubricant.tillDate ||
-      !Array.isArray(masterRatesData.lubricant.rates)
-    ) {
+    const validRates = (data || []).filter((item) => {
+      if (!item.from_date || !item.till_date) return false;
+
+      const from = new Date(item.from_date);
+      const till = new Date(item.till_date);
+
+      return reportDate >= from && reportDate <= till;
+    });
+
+    const updatedFuel = {};
+
+    validRates.forEach((item) => {
+      updatedFuel[item.product] = {
+        purchaseRate: item.purchase_rate,
+        saleRate: item.sale_rate,
+      };
+    });
+
+    setFuel((prev) => ({
+      ...prev,
+      ...updatedFuel,
+    }));
+  };
+
+  loadFuelRates();
+}, [reportInfo.date]);
+
+// ================= LUBRICANT MASTER RATES ONLINE =================
+
+useEffect(() => {
+  const loadLubricantRates = async () => {
+    if (!reportInfo.date) return;
+
+    const { data, error } = await supabase
+      .from("master_rates")
+      .select("*")
+      .eq("category", "lubricant");
+
+    if (error) {
+      console.error("Lubricant Rates Load Error:", error);
       return;
     }
 
-    const lubeFrom = new Date(
-      masterRatesData.lubricant.fromDate
-    );
+    const reportDate = new Date(reportInfo.date);
 
-    const lubeTill = new Date(
-      masterRatesData.lubricant.tillDate
-    );
+    const validRates = (data || []).filter((item) => {
+      if (!item.from_date || !item.till_date) return false;
 
-    if (reportDate >= lubeFrom && reportDate <= lubeTill) {
+      const from = new Date(item.from_date);
+      const till = new Date(item.till_date);
 
-      const updatedLube = {};
+      return reportDate >= from && reportDate <= till;
+    });
 
-      masterRatesData.lubricant.rates.forEach((item) => {
+    const updatedLube = {};
 
-        updatedLube[item.product] = {
-          purchaseRate: item.purchaseRate,
-          saleRate: item.saleRate,
-        };
+    validRates.forEach((item) => {
+      updatedLube[item.product] = {
+        purchaseRate: item.purchase_rate,
+        saleRate: item.sale_rate,
+      };
+    });
 
-      });
+    setLubeRates(updatedLube);
+  };
 
-      setLubeRates(updatedLube);
-    }
-
-  }, [reportInfo.date]);
-
+  loadLubricantRates();
+}, [reportInfo.date]);
   // ================= EXPENSES =================
 
   const [expenses, setExpenses] = useState({});
@@ -283,13 +294,13 @@ function DailySalesReport() {
 
   // ================= EXCEL EXPORT =================
 
- const exportToExcel = () => {
+   const exportToExcel = () => {
 
   const data = [
 
     {
       Product: "HSD",
-      Liters: getHSDTotal(),
+      Liters: getTotalSaleHSD(),
       PurchaseRate: fuel.HSD.purchaseRate,
       SaleRate: fuel.HSD.saleRate,
       Profit: getTotalProfit("HSD").toFixed(2),
@@ -297,7 +308,7 @@ function DailySalesReport() {
 
     {
       Product: "PMG",
-      Liters: getPMGTotal(),
+      Liters: getTotalSalePMG(),
       PurchaseRate: fuel.PMG.purchaseRate,
       SaleRate: fuel.PMG.saleRate,
       Profit: getTotalProfit("PMG").toFixed(2),
@@ -305,7 +316,7 @@ function DailySalesReport() {
 
     {
       Product: "SVP",
-      Liters: getSVPTotal(),
+      Liters: getTotalSaleSVP(),
       PurchaseRate: fuel.SVP.purchaseRate,
       SaleRate: fuel.SVP.saleRate,
       Profit: getTotalProfit("SVP").toFixed(2),
@@ -329,7 +340,7 @@ function DailySalesReport() {
         getStockGainLoss("PMG") +
         getStockGainLoss("SVP")
       ).toFixed(2),
-     },
+    },
 
     {
       Product: "",
@@ -337,7 +348,7 @@ function DailySalesReport() {
       PurchaseRate: "",
       SaleRate: "PRICE GAIN / LOSS",
       Profit: getTotalPriceGainLoss().toFixed(2),
-     },
+    },
 
     {
       Product: "",
@@ -397,62 +408,78 @@ function DailySalesReport() {
 
 // ================= SAVE DAILY REPORT =================
 
-const handleSave = () => {
+const handleSave = async () => {
   if (!reportInfo.date) {
     alert("⚠ Please Enter Date First");
     return;
   }
 
   const report = {
-  reportInfo,
-  nozzles,
-  lubeData,
-  lubeRates,
-  fuel,
-  lubricant,
-  expenses,
-  priceGain,
-  stockGain,
-};
+    reportInfo,
+    nozzles,
+    lubeData,
+    lubeRates,
+    fuel,
+    lubricant,
+    expenses,
+    priceGain,
+    stockGain,
+  };
 
-  localStorage.setItem(
-    `DailySaleReport-${reportInfo.date}`,
-    JSON.stringify(report)
-  );
+  try {
+    const { error } = await supabase
+      .from("daily_sales_reports")
+      .upsert(
+        {
+          report_date: reportInfo.date,
+          report_data: report,
+          updated_at: new Date().toISOString(),
+        },
+        {
+          onConflict: "report_date",
+        }
+      );
 
-  const reportsIndex =
-    JSON.parse(
-      localStorage.getItem("DailySaleReports")
-    ) || [];
+    if (error) {
+      console.error("Supabase Save Error:", error);
+      alert("❌ Online Save Error: " + error.message);
+      return;
+    }
 
-  if (!reportsIndex.includes(reportInfo.date)) {
-    reportsIndex.push(reportInfo.date);
 
-    localStorage.setItem(
-      "DailySaleReports",
-      JSON.stringify(reportsIndex)
-    );
+    alert("✅ Report Saved Online Successfully");
+
+  } catch (error) {
+    console.error("Save Error:", error);
+    alert("❌ Something went wrong while saving report.");
   }
-
-  alert("✅ Report Saved Successfully");
 };
 
-
-// ================= LOAD DAILY REPORT =================
-
-const handleLoad = () => {
+const handleLoad = async () => {
   if (!reportInfo.date) {
     alert("⚠ Please Enter Date First");
     return;
   }
 
-  const saved = localStorage.getItem(
-    `DailySaleReport-${reportInfo.date}`
-  );
+  try {
+    const { data, error } = await supabase
+      .from("daily_sales_reports")
+      .select("report_data")
+      .eq("report_date", reportInfo.date)
+      .maybeSingle();
 
-  // ================= CURRENT DATE SAVED REPORT =================
-  if (saved) {
-    const report = JSON.parse(saved);
+    if (error) {
+      console.error("Supabase Load Error:", error);
+      alert("❌ Online Load Error: " + error.message);
+      return;
+    }
+
+    if (!data?.report_data) {
+      alert("❌ No Saved Report Found");
+      return;
+    }
+
+    const report = data.report_data;
 
     setReportInfo(
       report.reportInfo || {
@@ -462,6 +489,8 @@ const handleLoad = () => {
     );
 
     setNozzles(report.nozzles || {});
+    setLubeData(report.lubeData || {});
+    setLubeRates(report.lubeRates || {});
 
     setFuel(
       report.fuel || {
@@ -501,215 +530,152 @@ const handleLoad = () => {
     );
 
     setExpenses(report.expenses || {});
-    setLubeData(report.lubeData || {});
 
-   setLubricant(
-   report.lubricant || {
-    sale: 0,
-    purchaseRate: 0,
-    saleRate: 0,
-   }
-   );
-
-    setStockGain(
-      report.stockGain || {
-        HSD: {
-          opening: 0,
-          receipt: 0,
-          closing: 0,
-        },
-        PMG: {
-          opening: 0,
-          receipt: 0,
-          closing: 0,
-        },
-        SVP: {
-          opening: 0,
-          receipt: 0,
-          closing: 0,
-        },
+    setLubricant(
+      report.lubricant || {
+        sale: 0,
+        purchaseRate: 0,
+        saleRate: 0,
       }
     );
 
-    alert("✅ Report Loaded Successfully");
-    return;
-  }
-
-  // ================= NO CURRENT REPORT =================
-
-  // Previous date calculate karo
-  const currentDate = new Date(reportInfo.date + "T00:00:00");
-  currentDate.setDate(currentDate.getDate() - 1);
-
-  const previousDate =
-    currentDate.getFullYear() +
-    "-" +
-    String(currentDate.getMonth() + 1).padStart(2, "0") +
-    "-" +
-    String(currentDate.getDate()).padStart(2, "0");
-
-  const previousSaved = localStorage.getItem(
-    `DailySaleReport-${previousDate}`
-  );
-
-  // ================= RESET CURRENT DATA =================
-
-  setNozzles({});
-  
-  setFuel({
-    HSD: {
-      purchaseRate: "",
-      saleRate: "",
-    },
-    PMG: {
-      purchaseRate: "",
-      saleRate: "",
-    },
-    SVP: {
-      purchaseRate: "",
-      saleRate: "",
-    },
-  });
-
-  setPriceGain({
-    HSD: {
-      liters: 0,
-      oldRate: 0,
-      newRate: 0,
-    },
-    PMG: {
-      liters: 0,
-      oldRate: 0,
-      newRate: 0,
-    },
-    SVP: {
-      liters: 0,
-      oldRate: 0,
-      newRate: 0,
-    },
-  });
-
-  setExpenses({});
-
-  setLubricant({
-    sale: 0,
-    purchaseRate: 0,
-    saleRate: 0,
-  });
-
-  // ================= PREVIOUS DATE CLOSING =================
-
-  if (previousSaved) {
-    const previousReport = JSON.parse(previousSaved);
-
-    // ---------- NOZZLES ----------
-    // Previous nozzle closing -> current nozzle opening
-    const previousNozzles = previousReport.nozzles || {};
-    const newNozzles = {};
-
-    Object.keys(previousNozzles).forEach((nozzle) => {
-      newNozzles[nozzle] = {
-        opening: Number(
-          previousNozzles[nozzle]?.closing || 0
-        ),
-        closing: "",
-      };
-    });
-
-    setNozzles(newNozzles);
-
-    // ---------- STOCK GAIN / LOSS ----------
-    // Previous fuel closing -> current fuel opening
-    const previousStockGain =
-      previousReport.stockGain || {};
-
-    setStockGain({
-      HSD: {
-        opening: Number(
-          previousStockGain.HSD?.closing || 0
-        ),
-        receipt: 0,
-        closing: 0,
-      },
-
-      PMG: {
-        opening: Number(
-          previousStockGain.PMG?.closing || 0
-        ),
-        receipt: 0,
-        closing: 0,
-      },
-
-      SVP: {
-        opening: Number(
-          previousStockGain.SVP?.closing || 0
-        ),
-        receipt: 0,
-        closing: 0,
-      },
-    });
-
-    // ---------- LUBRICANTS ----------
-    // Previous lubricant closing -> current lubricant opening
-    const previousLubeData =
-      previousReport.lubeData || {};
-
-    const newLubeData = {};
-
-    Object.keys(previousLubeData).forEach((product) => {
-      newLubeData[product] = {
-        ...previousLubeData[product],
-        opening: Number(
-          previousLubeData[product]?.closing || 0
-        ),
-        received: 0,
-        closing: 0,
-      };
-    });
-
-    setLubeData(newLubeData);
-
-    setReportInfo({
-      date: reportInfo.date,
-      shiftIncharge: "",
-    });
-
-    alert(
-      `ℹ️ No report for ${reportInfo.date}.\nPrevious date closing loaded as opening.`
+    setStockGain(
+      report.stockGain || {
+        HSD1: { opening: 0, receipt: 0, closing: 0 },
+        HSD2: { opening: 0, receipt: 0, closing: 0 },
+        HSD3: { opening: 0, receipt: 0, closing: 0 },
+        PMG: { opening: 0, receipt: 0, closing: 0 },
+        SVP: { opening: 0, receipt: 0, closing: 0 },
+      }
     );
 
-    return;
+    // Keep today's Received/Closing values editable, but force Opening from previous day's Closing.
+    await carryForwardOpenings(reportInfo.date);
+
+    alert("✅ Report Loaded Online Successfully");
+
+  } catch (error) {
+    console.error("Load Error:", error);
+    alert("❌ Something went wrong while loading report.");
   }
+};
+
+
+// ================= LOAD DAILY REPORT =================
+
+// Previous day's closing becomes today's opening.
+const getPreviousDate = (dateString) => {
+  const d = new Date(`${dateString}T00:00:00`);
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().split("T")[0];
+};
+
+const carryForwardOpenings = async (dateString) => {
+  if (!dateString) return false;
+
+  const previousDate = getPreviousDate(dateString);
+  let previousReport = null;
+
+  try {
+    const { data, error } = await supabase
+      .from("daily_sales_reports")
+      .select("report_data")
+      .eq("report_date", previousDate)
+      .maybeSingle();
+
+    if (!error && data?.report_data) {
+      previousReport = data.report_data;
+    }
+  } catch (error) {
+    console.error("Previous report online load error:", error);
+  }
+
+  // Local backup fallback
+  if (!previousReport) {
+    try {
+      const local = localStorage.getItem(`DailySaleReport-${previousDate}`);
+      if (local) previousReport = JSON.parse(local);
+    } catch (error) {
+      console.error("Previous report local load error:", error);
+    }
+  }
+
+  if (!previousReport) return false;
+
+  // 1) Nozzle closing -> today's nozzle opening
+  if (previousReport.nozzles) {
+    setNozzles((current) => {
+      const next = { ...current };
+      Object.keys(previousReport.nozzles).forEach((nozzle) => {
+        const closing = previousReport.nozzles[nozzle]?.closing;
+        if (closing !== undefined && closing !== null) {
+          next[nozzle] = {
+            ...(next[nozzle] || {}),
+            opening: Number(closing) || 0,
+          };
+        }
+      });
+      return next;
+    });
+  }
+
+  // 2) Fuel Profit closing -> today's Opening
+if (previousReport.stockGain) {
+  setStockGain((current) => {
+    const next = { ...current };
+
+    ["HSD1", "HSD2", "HSD3", "PMG", "SVP"].forEach((product) => {
+      const closing = previousReport.stockGain?.[product]?.closing;
+
+      next[product] = {
+        ...(next[product] || {}),
+        opening:
+          closing !== undefined && closing !== null
+            ? Number(closing) || 0
+            : "",
+        closing: "", // IMPORTANT: today's closing blank
+      };
+    });
+
+    return next;
+  });
+}
+
+ // 3) Lubricant closing -> today's Opening
+if (previousReport.lubeData) {
+  setLubeData((current) => {
+    const next = { ...current };
+
+    Object.keys(previousReport.lubeData).forEach((product) => {
+      const closing = previousReport.lubeData[product]?.closing;
+
+      next[product] = {
+        ...(next[product] || {}),
+        opening:
+          closing !== undefined && closing !== null
+            ? Number(closing) || 0
+            : "",
+        closing: "", // IMPORTANT: today's closing blank
+      };
+    });
+
+    return next;
+  });
+}
+
+  return true;
+};
+
+// Automatically carry forward whenever the report date changes.
+useEffect(() => {
+  if (reportInfo.date) {
+    carryForwardOpenings(reportInfo.date);
+  }
+}, [reportInfo.date]);
 
   // ================= NO CURRENT OR PREVIOUS REPORT =================
 
-  setStockGain({
-    HSD: {
-      opening: 0,
-      receipt: 0,
-      closing: 0,
-    },
-    PMG: {
-      opening: 0,
-      receipt: 0,
-      closing: 0,
-    },
-    SVP: {
-      opening: 0,
-      receipt: 0,
-      closing: 0,
-    },
-  });
-
-  setLubeData({});
-
-  setReportInfo({
-    date: reportInfo.date,
-    shiftIncharge: "",
-  });
-
-  alert("❌ No Saved Report Found");
-};
+  
 
 
 // ================= NOZZLE CHANGE =================
@@ -733,6 +699,17 @@ const handleLubeChange = (
   value
 ) => {
   setLubeData((prev) => ({
+    ...prev,
+    [product]: {
+      ...prev[product],
+      [field]: Number(value) || 0,
+    },
+  }));
+};
+
+// ================= FUEL PROFIT STOCK CHANGE =================
+const handleStockGainChange = (product, field, value) => {
+  setStockGain((prev) => ({
     ...prev,
     [product]: {
       ...prev[product],
@@ -824,13 +801,47 @@ const getSVPTotal = () => {
   );
 };
 
+const getDayName = (dateString) => {
+  if (!dateString) return "";
 
-// ================= LUBRICANT PER UNIT PROFIT =================
+  return new Date(dateString).toLocaleDateString("en-US", {
+    weekday: "long",
+  });
+};
+// ================= FINAL TOTAL SALE AFTER TASTING =================
 
-const getLubricantPerLiterProfit = () => {
+
+
+const getTotalSaleHSD1 = () => {
   return (
-    Number(lubricant.saleRate || 0) -
-    Number(lubricant.purchaseRate || 0)
+    getSale("HSD-1") +
+    getSale("HSD-2") -
+    Number(tastingHSD || 0)
+  );
+};
+
+const getTotalSaleHSD2 = () => {
+  return (
+    getSale("HSD-3") +
+    getSale("HSD-4")
+  );
+};
+
+const getTotalSaleHSD3 = () => {
+  return (
+    getSale("HSD-5") +
+    getSale("HSD-6") +
+    getSale("HSD-7") +
+    getSale("HSD-8")
+  );
+};
+
+// ================= TOTAL HSD SALE =================
+const getTotalSaleHSD = () => {
+  return (
+    getTotalSaleHSD1() +
+    getTotalSaleHSD2() +
+    getTotalSaleHSD3()
   );
 };
 
@@ -848,11 +859,51 @@ const getLubricantTotalProfit = () => {
 // ================= TOTAL FUEL PROFIT =================
 
 const getTotalFuelProfit = () => {
-  return (
-    getTotalProfit("HSD") +
-    getTotalProfit("PMG") +
-    getTotalProfit("SVP")
-  );
+  // HSD has 8 nozzles split into 3 HSD sale groups.
+  // Keep the existing tasting adjustment inside getTotalSaleHSD1().
+  const totalHSD =
+    getTotalSaleHSD1() +
+    getTotalSaleHSD2() +
+    getTotalSaleHSD3();
+
+  const hsdProfit =
+    totalHSD * getPerLiterProfit("HSD");
+
+  const pmgProfit =
+    getTotalSalePMG() * getPerLiterProfit("PMG");
+
+  const svpProfit =
+    getTotalSaleSVP() * getPerLiterProfit("SVP");
+
+  return hsdProfit + pmgProfit + svpProfit;
+};
+
+// Total HSD sale used by reports and summaries.
+
+
+
+const getTotalSalePMG = () => {
+  const nozzleSale =
+    (Number(nozzles["PMG-1"]?.closing || 0) -
+      Number(nozzles["PMG-1"]?.opening || 0)) +
+    (Number(nozzles["PMG-2"]?.closing || 0) -
+      Number(nozzles["PMG-2"]?.opening || 0)) +
+    (Number(nozzles["PMG-3"]?.closing || 0) -
+      Number(nozzles["PMG-3"]?.opening || 0)) +
+    (Number(nozzles["PMG-4"]?.closing || 0) -
+      Number(nozzles["PMG-4"]?.opening || 0));
+
+  return nozzleSale - Number(tastingPMG || 0);
+};
+
+const getTotalSaleSVP = () => {
+  const nozzleSale =
+    (Number(nozzles["SVP-1"]?.closing || 0) -
+      Number(nozzles["SVP-1"]?.opening || 0)) +
+    (Number(nozzles["SVP-2"]?.closing || 0) -
+      Number(nozzles["SVP-2"]?.opening || 0));
+
+  return nozzleSale - Number(tastingSVP || 0);
 };
 
 
@@ -907,8 +958,30 @@ const getNetProfit = () => {
 };
 
 const getPerLiterProfit = (product) => {
-  const purchase = Number(fuel?.[product]?.purchaseRate || 0);
-  const sale = Number(fuel?.[product]?.saleRate || 0);
+  let purchase = 0;
+  let sale = 0;
+
+  if (
+    product === "HSD1" ||
+    product === "HSD2" ||
+    product === "HSD3"
+  ) {
+    purchase = Number(
+      fuel?.HSD?.purchaseRate || 0
+    );
+
+    sale = Number(
+      fuel?.HSD?.saleRate || 0
+    );
+  } else {
+    purchase = Number(
+      fuel?.[product]?.purchaseRate || 0
+    );
+
+    sale = Number(
+      fuel?.[product]?.saleRate || 0
+    );
+  }
 
   return sale - purchase;
 };
@@ -916,58 +989,57 @@ const getPerLiterProfit = (product) => {
 const getTotalProfit = (product) => {
   let totalSale = 0;
 
-  if (product === "HSD") {
-    totalSale = getHSDTotal();
-  } else if (product === "PMG") {
-    totalSale = getPMGTotal();
-  } else if (product === "SVP") {
-    totalSale = getSVPTotal();
+  if (product === "HSD1") {
+    totalSale =
+      (Number(nozzles["HSD-1"]?.closing || 0) -
+        Number(nozzles["HSD-1"]?.opening || 0)) +
+      (Number(nozzles["HSD-2"]?.closing || 0) -
+        Number(nozzles["HSD-2"]?.opening || 0));
+  }
+
+  else if (product === "HSD2") {
+    totalSale =
+      (Number(nozzles["HSD-3"]?.closing || 0) -
+        Number(nozzles["HSD-3"]?.opening || 0)) +
+      (Number(nozzles["HSD-4"]?.closing || 0) -
+        Number(nozzles["HSD-4"]?.opening || 0));
+  }
+
+  else if (product === "HSD3") {
+    totalSale =
+      (Number(nozzles["HSD-5"]?.closing || 0) -
+        Number(nozzles["HSD-5"]?.opening || 0)) +
+      (Number(nozzles["HSD-6"]?.closing || 0) -
+        Number(nozzles["HSD-6"]?.opening || 0)) +
+      (Number(nozzles["HSD-7"]?.closing || 0) -
+        Number(nozzles["HSD-7"]?.opening || 0)) +
+      (Number(nozzles["HSD-8"]?.closing || 0) -
+        Number(nozzles["HSD-8"]?.opening || 0));
+  }
+
+  else if (product === "PMG") {
+    totalSale = getTotalSalePMG();
+  }
+
+  else if (product === "SVP") {
+    totalSale = getTotalSaleSVP();
   }
 
   return totalSale * getPerLiterProfit(product);
 };
 
-const getDayName = (dateString) => {
-  if (!dateString) return "";
-
-  return new Date(dateString).toLocaleDateString("en-US", {
-    weekday: "long",
-  });
-};
-
-
-/* ================= STOCK GAIN / LOSS ================= */
-
-const [stockGain, setStockGain] = useState({
-  HSD: {
-    opening: 0,
-    receipt: 0,
-    closing: 0,
-  },
-  PMG: {
-    opening: 0,
-    receipt: 0,
-    closing: 0,
-  },
-  SVP: {
-    opening: 0,
-    receipt: 0,
-    closing: 0,
-  },
-});
-
-
-const handleStockGainChange = (product, field, value) => {
-  setStockGain((prev) => ({
-    ...prev,
-    [product]: {
-      ...prev[product],
-      [field]: Number(value) || 0,
-    },
-  }));
-};
+// ================= STOCK GAIN / LOSS LITERS =================
 
 const getStockGainLossLiters = (product) => {
+  // HSD in the summary is the combined result of all 3 HSD tanks.
+  if (product === "HSD") {
+    return (
+      getStockGainLossLiters("HSD1") +
+      getStockGainLossLiters("HSD2") +
+      getStockGainLossLiters("HSD3")
+    );
+  }
+
   const opening = Number(
     stockGain[product]?.opening || 0
   );
@@ -976,12 +1048,40 @@ const getStockGainLossLiters = (product) => {
     stockGain[product]?.receipt || 0
   );
 
-  const sale =
-    product === "HSD"
-      ? getHSDTotal()
-      : product === "PMG"
-      ? getPMGTotal()
-      : getSVPTotal();
+  let sale = 0;
+
+  // HSD Tank 1 = HSD-1 + HSD-2
+  if (product === "HSD1") {
+    sale =
+      getSale("HSD-1") +
+      getSale("HSD-2");
+  }
+
+  // HSD Tank 2 = HSD-3 + HSD-4
+  else if (product === "HSD2") {
+    sale =
+      getSale("HSD-3") +
+      getSale("HSD-4");
+  }
+
+  // HSD Tank 3 = HSD-5 + HSD-6 + HSD-7 + HSD-8
+  else if (product === "HSD3") {
+    sale =
+      getSale("HSD-5") +
+      getSale("HSD-6") +
+      getSale("HSD-7") +
+      getSale("HSD-8");
+  }
+
+  // PMG
+  else if (product === "PMG") {
+    sale = getPMGTotal();
+  }
+
+  // SVP
+  else if (product === "SVP") {
+    sale = getSVPTotal();
+  }
 
   const actualClosing = Number(
     stockGain[product]?.closing || 0
@@ -993,34 +1093,37 @@ const getStockGainLossLiters = (product) => {
   return actualClosing - expectedClosing;
 };
 
+
+
+// ================= STOCK GAIN / LOSS =================
+
 const getStockGainLoss = (product) => {
-  const opening = Number(stockGain[product]?.opening || 0);
-  const receipt = Number(stockGain[product]?.receipt || 0);
 
-  const sale =
-    product === "HSD"
-      ? getHSDTotal()
-      : product === "PMG"
-      ? getPMGTotal()
-      : getSVPTotal();
+  let purchaseRate = 0;
 
-  const actualClosing = Number(
-    stockGain[product]?.closing || 0
-  );
-
-  // Expected closing:
-  // Opening + Received - Sale
-  const expectedClosing =
-    opening + receipt - sale;
-
-  // Actual closing - Expected closing
-  // Positive = Gain
-  // Negative = Loss
+  // Gain / Loss Liters
   const gainLossLiters =
-    actualClosing - expectedClosing;
+    Number(getStockGainLossLiters(product)) || 0;
 
-  const purchaseRate =
-    Number(fuel[product]?.purchaseRate || 0);
+  if (
+    product === "HSD" ||
+    product === "HSD1" ||
+    product === "HSD2" ||
+    product === "HSD3"
+  ) {
+    purchaseRate =
+      Number(fuel?.HSD?.purchaseRate || 0);
+  }
+
+  else if (
+    product === "PMG" ||
+    product === "SVP"
+  ) {
+    purchaseRate =
+      Number(
+        fuel?.[product]?.purchaseRate || 0
+      );
+  }
 
   return gainLossLiters * purchaseRate;
 };
@@ -1030,367 +1133,521 @@ const getStockGainLoss = (product) => {
 
 return (
   <div className="daily-report">
-    <div className="report-header">
+    <div className="report-header">
 
-      <div className="header-left">
-        <h2>AL-HAJ PETROLEUM SERVICES - II</h2>
-        <p>N-5 Kotri Kabir Distt: Noushahro Feroze</p>
-      </div>
+      <div className="header-left">
+        <h2>AL-HAJ PETROLEUM SERVICES - II</h2>
+        <p>N-5 Kotri Kabir Distt: Noushahro Feroze</p>
+      </div>
 
-      <div className="header-center">
-        <h1>DAILY SALE REPORT</h1>
-      </div>
+      <div className="header-center">
+        <h1>DAILY SALE REPORT</h1>
+      </div>
 
-      <div className="header-right">
+      <div className="header-right">
 
-  <div className="field">
-  <label>Date</label>
+  <div className="field">
+  <label>Date</label>
 
-  <input
-  type="date"
-  value={reportInfo.date}
-  onChange={(e) =>
-    setReportInfo({
-      ...reportInfo,
-      date: e.target.value,
-    })
-  }
+  <input
+  type="date"
+  value={reportInfo.date}
+  onChange={(e) =>
+    setReportInfo({
+      ...reportInfo,
+      date: e.target.value,
+    })
+  }
 />
 
-  <p style={{ fontWeight: "600", color: "#1565c0" }}>
-  {reportInfo.date
-    ? `${new Date(reportInfo.date).toLocaleDateString("en-GB", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      })} (${getDayName(reportInfo.date)})`
-    : ""}
+  <p style={{ fontWeight: "600", color: "#1565c0" }}>
+  {reportInfo.date
+    ? `${new Date(reportInfo.date).toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })} (${getDayName(reportInfo.date)})`
+    : ""}
 </p>
 </div>
 
-  <div className="field">
-    <label>Shift Incharge</label>
-    <input
-      type="text"
-      value={reportInfo.shiftIncharge}
-      onChange={(e)=>
-        setReportInfo({
-          ...reportInfo,
-          shiftIncharge:e.target.value
-        })
-      }
-    />
-  </div>
+  <div className="field">
+    <label>Shift Incharge</label>
+    <input
+      type="text"
+      value={reportInfo.shiftIncharge}
+      onChange={(e)=>
+        setReportInfo({
+          ...reportInfo,
+          shiftIncharge:e.target.value
+        })
+      }
+    />
+  </div>
 
 </div>
 
- </div>
-    {/* Header End */}
+ </div>
+    {/* Header End */}
 
-    <div className="action-buttons">
-  <button
-  className="save-btn"
-  onClick={handleSave}
+    <div className="action-buttons">
+  <button
+  className="save-btn"
+  onClick={handleSave}
 >
-  💾 Save
+  💾 Save
 </button>
 
 <button
-  className="load-btn"
-  onClick={handleLoad}
+  className="load-btn"
+  onClick={handleLoad}
 >
-  📂 Load
+  📂 Load
 </button>
 
-  <button className="print-btn" onClick={handlePrint}>
-    🖨 Print
-  </button>
+  <button className="print-btn" onClick={handlePrint}>
+    🖨 Print
+  </button>
 
-  <button className="excel-btn" onClick={exportToExcel}>
-    📊 Export Excel
-  </button>
+  <button className="excel-btn" onClick={exportToExcel}>
+    📊 Export Excel
+  </button>
 
-  <button className="pdf-btn">
-    📄 Export PDF
-  </button>
+  <button className="pdf-btn">
+    📄 Export PDF
+  </button>
 
-  <div className="report-box">
+  <div className="report-box">
 
-    <h2>Diesel Nozzles</h2>
+    <h2>Diesel Nozzles</h2>
 
-    <table>
+    <table>
 
-      <thead>
+      <thead>
 
-        <tr>
+        <tr>
 
-          <th>Nozzle</th>
-          <th>Opening</th>
-          <th>Closing</th>
-          <th>Sale</th>
+          <th>Nozzle</th>
+          <th>Opening</th>
+          <th>Closing</th>
+          <th>Sale</th>
 
-          <th>Nozzle</th>
-          <th>Opening</th>
-          <th>Closing</th>
-          <th>Sale</th>
+          <th>Nozzle</th>
+          <th>Opening</th>
+          <th>Closing</th>
+          <th>Sale</th>
 
-        </tr>
+        </tr>
 
-      </thead>
+      </thead>
 
-      <tbody>
+      <tbody>
 
-        {[0,1,2,3].map(i=>(
+        {[0,1,2,3].map(i=>(
 
-          <tr key={i}>
+          <tr key={i}>
 
-          <td>{`HSD-${i + 1}`}
-         </td>  
+          <td>{`HSD-${i + 1}`}
+         </td>  
          
 
-         <td>
-  <input
-    type="number"
-    value={nozzles[`HSD-${i + 1}`]?.opening || ""}
-    onChange={(e) =>
-      handleChange(`HSD-${i + 1}`, "opening", e.target.value)
-    }
-  />
+         <td>
+  <input
+    type="number"
+    value={nozzles[`HSD-${i + 1}`]?.opening || ""}
+    readOnly
+    onChange={(e) =>
+      handleChange(`HSD-${i + 1}`, "opening", e.target.value)
+    }
+  />
 </td>
 
 <td>
-  <input
-    type="number"
-    value={nozzles[`HSD-${i + 1}`]?.closing || ""}
-    onChange={(e) =>
-      handleChange(`HSD-${i + 1}`, "closing", e.target.value)
-    }
-  />
+  <input
+    type="number"
+    value={nozzles[`HSD-${i + 1}`]?.closing || ""}
+    onChange={(e) =>
+      handleChange(`HSD-${i + 1}`, "closing", e.target.value)
+    }
+  />
 </td>
 
 <td>{getSale(`HSD-${i + 1}`)}</td>
 
 <td>{`HSD-${i + 5}`}</td>
 
-            <td>
-  <input
-    type="number"
-    value={nozzles[`HSD-${i + 5}`]?.opening || ""}
-    onChange={(e) =>
-      handleChange(`HSD-${i + 5}`, "opening", e.target.value)
-    }
-  />
+            <td>
+  <input
+    type="number"
+    value={nozzles[`HSD-${i + 5}`]?.opening || ""}
+    readOnly
+    onChange={(e) =>
+      handleChange(`HSD-${i + 5}`, "opening", e.target.value)
+    }
+  />
 </td>
 
 <td>
-  <input
-    type="number"
-    value={nozzles[`HSD-${i + 5}`]?.closing || ""}
-    onChange={(e) =>
-      handleChange(`HSD-${i + 5}`, "closing", e.target.value)
-    }
-  />
+  <input
+    type="number"
+    value={nozzles[`HSD-${i + 5}`]?.closing || ""}
+    onChange={(e) =>
+      handleChange(`HSD-${i + 5}`, "closing", e.target.value)
+    }
+  />
 </td>
 
 <td>{getSale(`HSD-${i + 5}`)}</td>
 
-          </tr>
+          </tr>
 
-        ))}
+        ))}
 
-      </tbody>
+      </tbody>
 
-    </table>
+    </table>
 
-  </div>
+  </div>
 
 
 
-  <div className="report-box">
 
-    <h2>Super Nozzles</h2>
+{/* ================= HSD TASTING ================= */}
 
-    <table>
+<tr>
+  <td
+    colSpan="3"
+    style={{
+      border: "1px solid #999",
+      textAlign: "right",
+      fontWeight: "bold",
+    }}
+    
+  >
+    Tasting HSD
+  </td>
+  
 
-      <thead>
+  <td style={{ border: "1px solid #999" }}>
+    <input
+      type="number"
+      value={tastingHSD ?? ""}
+      onChange={(e) =>
+        setTastingHSD(Number(e.target.value) || 0)
+      }
+    />
+  </td>
+</tr>
 
-        <tr>
+{/* ================= TOTAL SALE HSD ================= */}
+<tr>
+  <td
+    colSpan="3"
+    style={{
+      border: "1px solid #999",
+      textAlign: "right",
+      fontWeight: "bold",
+    }}
+  >
+    TOTAL SALE HSD
+  </td>
 
-          <th>Nozzle</th>
-          <th>Opening</th>
-          <th>Closing</th>
-          <th>Sale</th>
+  <td
+    style={{
+      border: "1px solid #999",
+      fontWeight: "bold",
+    }}
+  >
+    {(getHSDTotal() - Number(tastingHSD || 0)).toFixed(2)}
+  </td>
+</tr>
 
-          <th>Nozzle</th>
-          <th>Opening</th>
-          <th>Closing</th>
-          <th>Sale</th>
 
-        </tr>
 
-      </thead>
 
-      <tbody>
+  <div className="report-box">
 
-        {[1,2].map(i=>(
+    <h2>Super Nozzles</h2>
 
-          <tr key={i}>
+    <table>
 
-            <td>{`PMG-${i}`}</td>
+      <thead>
+
+        <tr>
+
+          <th>Nozzle</th>
+          <th>Opening</th>
+          <th>Closing</th>
+          <th>Sale</th>
+
+          <th>Nozzle</th>
+          <th>Opening</th>
+          <th>Closing</th>
+          <th>Sale</th>
+
+        </tr>
+
+      </thead>
+
+      <tbody>
+
+        {[1,2].map(i=>(
+
+          <tr key={i}>
+
+            <td>{`PMG-${i}`}</td>
 
 <td>
-  <input
-    type="number"
-    value={nozzles[`PMG-${i}`]?.opening || ""}
-    onChange={(e) =>
-      handleChange(`PMG-${i}`, "opening", e.target.value)
-    }
-  />
+  <input
+    type="number"
+    value={nozzles[`PMG-${i}`]?.opening || ""}
+    readOnly
+    onChange={(e) =>
+      handleChange(`PMG-${i}`, "opening", e.target.value)
+    }
+  />
 </td>
 
 <td>
-  <input
-    type="number"
-    value={nozzles[`PMG-${i}`]?.closing || ""}
-    onChange={(e) =>
-      handleChange(`PMG-${i}`, "closing", e.target.value)
-    }
-  />
+  <input
+    type="number"
+    value={nozzles[`PMG-${i}`]?.closing || ""}
+    onChange={(e) =>
+      handleChange(`PMG-${i}`, "closing", e.target.value)
+    }
+  />
 </td>
 
 <td>{getSale(`PMG-${i}`)}</td>
 
-            <td>{`PMG-${i + 2}`}</td>
+            <td>{`PMG-${i + 2}`}</td>
 
 <td>
-  <input
-    type="number"
-    value={nozzles[`PMG-${i + 2}`]?.opening || ""}
-    onChange={(e) =>
-      handleChange(`PMG-${i + 2}`, "opening", e.target.value)
-    }
-  />
+  <input
+    type="number"
+    value={nozzles[`PMG-${i + 2}`]?.opening || ""}
+    readOnly
+    onChange={(e) =>
+      handleChange(`PMG-${i + 2}`, "opening", e.target.value)
+    }
+  />
 </td>
 
 <td>
-  <input
-    type="number"
-    value={nozzles[`PMG-${i + 2}`]?.closing || ""}
-    onChange={(e) =>
-      handleChange(`PMG-${i + 2}`, "closing", e.target.value)
-    }
-  />
+  <input
+    type="number"
+    value={nozzles[`PMG-${i + 2}`]?.closing || ""}
+    onChange={(e) =>
+      handleChange(`PMG-${i + 2}`, "closing", e.target.value)
+    }
+  />
 </td>
 
 <td>{getSale(`PMG-${i + 2}`)}</td>
 
-          </tr>
+          </tr>
 
-        ))}
+        ))}
 
-      </tbody>
+      </tbody>
 
-    </table>
+    </table>
 
-  </div>
+  </div>
+
+{/* ================= PMG TASTING ================= */}
+<tr>
+  <td
+    colSpan="3"
+    style={{
+      border: "1px solid #999",
+      textAlign: "right",
+      fontWeight: "bold",
+    }}
+  >
+    Tasting PMG
+  </td>
+
+  <td style={{ border: "1px solid #999" }}>
+    <input
+      type="number"
+      value={tastingPMG ?? ""}
+      onChange={(e) =>
+        setTastingPMG(Number(e.target.value) || 0)
+      }
+    />
+  </td>
+</tr>
+
+{/* ================= TOTAL SALE PMG ================= */}
+<tr>
+  <td
+    colSpan="3"
+    style={{
+      border: "1px solid #999",
+      textAlign: "right",
+      fontWeight: "bold",
+    }}
+  >
+    TOTAL SALE PMG
+  </td>
+
+  <td
+    style={{
+      border: "1px solid #999",
+      fontWeight: "bold",
+    }}
+  >
+    {(getPMGTotal() - Number(tastingPMG || 0)).toFixed(2)}
+  </td>
+</tr>
 
 
 
-  <div className="report-box">
+  <div className="report-box">
 
-    <h2>V-Power Nozzles</h2>
+    <h2>V-Power Nozzles</h2>
 
-    <table>
+    <table>
 
-      <thead>
+      <thead>
 
-        <tr>
+        <tr>
 
-          <th>Nozzle</th>
-          <th>Opening</th>
-          <th>Closing</th>
-          <th>Sale</th>
+          <th>Nozzle</th>
+          <th>Opening</th>
+          <th>Closing</th>
+          <th>Sale</th>
 
-          <th>Nozzle</th>
-          <th>Opening</th>
-          <th>Closing</th>
-          <th>Sale</th>
+          <th>Nozzle</th>
+          <th>Opening</th>
+          <th>Closing</th>
+          <th>Sale</th>
 
-        </tr>
+        </tr>
 
-      </thead>
+      </thead>
 
-      <tbody>
+      <tbody>
 
-        <tr>
+        <tr>
 
-            <td>SVP-1</td>
+            <td>SVP-1</td>
 
 <td>
-  <input
-    type="number"
-    value={nozzles["SVP-1"]?.opening || ""}
-    onChange={(e) =>
-      handleChange("SVP-1", "opening", e.target.value)
-    }
-  />
+  <input
+    type="number"
+    value={nozzles["SVP-1"]?.opening || ""}
+    readOnly
+    onChange={(e) =>
+      handleChange("SVP-1", "opening", e.target.value)
+    }
+  />
 </td>
 
 <td>
-  <input
-    type="number"
-    value={nozzles["SVP-1"]?.closing || ""}
-    onChange={(e) =>
-      handleChange("SVP-1", "closing", e.target.value)
-    }
-  />
+  <input
+    type="number"
+    value={nozzles["SVP-1"]?.closing || ""}
+    onChange={(e) =>
+      handleChange("SVP-1", "closing", e.target.value)
+    }
+  />
 </td>
 
 <td>{getSale("SVP-1")}</td>
 
-          <td>SVP-2</td>
+          <td>SVP-2</td>
 
 <td>
-  <input
-    type="number"
-    value={nozzles["SVP-2"]?.opening || ""}
-    onChange={(e) =>
-      handleChange("SVP-2", "opening", e.target.value)
-    }
-  />
+  <input
+    type="number"
+    value={nozzles["SVP-2"]?.opening || ""}
+    readOnly
+    onChange={(e) =>
+      handleChange("SVP-2", "opening", e.target.value)
+    }
+  />
 </td>
 
 <td>
-  <input
-    type="number"
-    value={nozzles["SVP-2"]?.closing || ""}
-    onChange={(e) =>
-      handleChange("SVP-2", "closing", e.target.value)
-    }
-  />
+  <input
+    type="number"
+    value={nozzles["SVP-2"]?.closing || ""}
+    onChange={(e) =>
+      handleChange("SVP-2", "closing", e.target.value)
+    }
+  />
 </td>
 
 <td>{getSale("SVP-2")}</td>
 
-        </tr>
+        </tr>
 
-      </tbody>
+      </tbody>
 
-    </table>
+    </table>
 
-  </div>
+  </div>
+
+{/* ================= SVP TASTING ================= */}
+<tr>
+  <td
+    colSpan="3"
+    style={{
+      border: "1px solid #999",
+      textAlign: "right",
+      fontWeight: "bold",
+    }}
+  >
+    Tasting SVP
+  </td>
+
+  <td style={{ border: "1px solid #999" }}>
+    <input
+      type="number"
+      value={tastingSVP ?? ""}
+      onChange={(e) =>
+        setTastingSVP(Number(e.target.value) || 0)
+      }
+    />
+  </td>
+</tr>
+
+{/* ================= TOTAL SALE SVP ================= */}
+<tr>
+  <td
+    colSpan="3"
+    style={{
+      border: "1px solid #999",
+      textAlign: "right",
+      fontWeight: "bold",
+    }}
+  >
+    TOTAL SALE SVP
+  </td>
+
+  <td
+    style={{
+      border: "1px solid #999",
+      fontWeight: "bold",
+    }}
+  >
+    {(getSVPTotal() - Number(tastingSVP || 0)).toFixed(2)}
+  </td>
+</tr>
 
 </div>
 
-      {/* Fuel Profit + Price Gain Row */}
+      {/* Fuel Profit + Price Gain Row */}
 
-      <div className="top-section">
+      <div className="top-section">
 
-        <div className="report-box">
+        <div className="report-box">
 
-          <h2>Fuel Profit</h2>
+          <h2>Fuel Profit</h2>
 
-       <table
+       <table
   style={{
     width: "100%",
     borderCollapse: "collapse",
@@ -1412,94 +1669,255 @@ return (
 
   <tbody>
 
-    {/* ================= HSD ================= */}
-    <tr>
-      <td style={{ border: "1px solid #999", fontWeight: "bold" }}>
-        HSD
-      </td>
+   {/* ================= HSD TANK 1 ================= */}
+<tr>
+  <td style={{ border: "1px solid #999", fontWeight: "bold" }}>
+    HSD TANK 1
+  </td>
 
-      {/* Opening - Manual */}
-      <td style={{ border: "1px solid #999" }}>
-        <input
-          type="number"
-          value={stockGain.HSD?.opening ?? ""}
-          onChange={(e) =>
-            handleStockGainChange(
-              "HSD",
-              "opening",
-              e.target.value
-            )
-          }
-        />
-      </td>
+  {/* Opening - Previous Day Closing - AUTO */}
+  <td style={{ border: "1px solid #999" }}>
+    <input
+      type="number"
+      value={stockGain.HSD1?.opening ?? ""}
+      readOnly
+    />
+  </td>
 
-      {/* Received - Manual */}
-      <td style={{ border: "1px solid #999" }}>
-        <input
-          type="number"
-          value={stockGain.HSD?.receipt ?? ""}
-          onChange={(e) =>
-            handleStockGainChange(
-              "HSD",
-              "receipt",
-              e.target.value
-            )
-          }
-        />
-      </td>
+  {/* Received - MANUAL */}
+  <td style={{ border: "1px solid #999" }}>
+    <input
+      type="number"
+      value={stockGain.HSD1?.receipt ?? ""}
+      onChange={(e) =>
+        handleStockGainChange(
+          "HSD1",
+          "receipt",
+          e.target.value
+        )
+      }
+    />
+  </td>
 
-      {/* Sale - Nozzle Automatic */}
-      <td style={{ border: "1px solid #999" }}>
-        <input
-          type="number"
-          value={getHSDTotal().toFixed(2)}
-          readOnly
-        />
-      </td>
+  {/* Sale - HSD-1 + HSD-2 */}
+  <td style={{ border: "1px solid #999" }}>
+    <input
+      type="number"
+      value={getTotalSaleHSD1().toFixed(2)}
+      readOnly
+    />
+  </td>
 
-      {/* Closing - Manual */}
-      <td style={{ border: "1px solid #999" }}>
-        <input
-          type="number"
-          value={stockGain.HSD?.closing ?? ""}
-          onChange={(e) =>
-            handleStockGainChange(
-              "HSD",
-              "closing",
-              e.target.value
-            )
-          }
-        />
-      </td>
+  {/* Closing - MANUAL */}
+  <td style={{ border: "1px solid #999" }}>
+    <input
+      type="number"
+      value={stockGain.HSD1?.closing ?? ""}
+      onChange={(e) =>
+        handleStockGainChange(
+          "HSD1",
+          "closing",
+          e.target.value
+        )
+      }
+    />
+  </td>
 
-      {/* Purchase Rate - Master Rate */}
-      <td style={{ border: "1px solid #999" }}>
-        <input
-          type="number"
-          value={fuel?.HSD?.purchaseRate || ""}
-          readOnly
-        />
-      </td>
+  {/* Purchase Rate */}
+  <td style={{ border: "1px solid #999" }}>
+    <input
+      type="number"
+      value={fuel?.HSD?.purchaseRate || ""}
+      readOnly
+    />
+  </td>
 
-      {/* Sale Rate - Master Rate */}
-      <td style={{ border: "1px solid #999" }}>
-        <input
-          type="number"
-          value={fuel?.HSD?.saleRate || ""}
-          readOnly
-        />
-      </td>
+  {/* Sale Rate */}
+  <td style={{ border: "1px solid #999" }}>
+    <input
+      type="number"
+      value={fuel?.HSD?.saleRate || ""}
+      readOnly
+    />
+  </td>
 
-      {/* Per Unit Profit */}
-      <td style={{ border: "1px solid #999" }}>
-        {getPerLiterProfit("HSD").toFixed(2)}
-      </td>
+  {/* Per Unit Profit */}
+  <td style={{ border: "1px solid #999" }}>
+    {getPerLiterProfit("HSD1").toFixed(2)}
+  </td>
 
-      {/* Total Profit */}
-      <td style={{ border: "1px solid #999" }}>
-        {getTotalProfit("HSD").toFixed(2)}
-      </td>
-    </tr>
+  {/* Total Profit */}
+  <td style={{ border: "1px solid #999" }}>
+    {getTotalProfit("HSD1").toFixed(2)}
+  </td>
+</tr>
+
+{/* ================= HSD TANK 2 ================= */}
+<tr>
+  <td style={{ border: "1px solid #999", fontWeight: "bold" }}>
+    HSD TANK 2
+  </td>
+
+  {/* Opening - Previous Day Closing - AUTO */}
+  <td style={{ border: "1px solid #999" }}>
+    <input
+      type="number"
+      value={stockGain.HSD2?.opening ?? ""}
+      readOnly
+    />
+  </td>
+
+  {/* Received - MANUAL */}
+  <td style={{ border: "1px solid #999" }}>
+    <input
+      type="number"
+      value={stockGain.HSD2?.receipt ?? ""}
+      onChange={(e) =>
+        handleStockGainChange(
+          "HSD2",
+          "receipt",
+          e.target.value
+        )
+      }
+    />
+  </td>
+
+  {/* Sale - HSD-3 + HSD-4 */}
+  <td style={{ border: "1px solid #999" }}>
+    <input
+      type="number"
+      value={getTotalSaleHSD2().toFixed(2)}
+      readOnly
+    />
+  </td>
+
+  {/* Closing - MANUAL */}
+  <td style={{ border: "1px solid #999" }}>
+    <input
+      type="number"
+      value={stockGain.HSD2?.closing ?? ""}
+      onChange={(e) =>
+        handleStockGainChange(
+          "HSD2",
+          "closing",
+          e.target.value
+        )
+      }
+    />
+  </td>
+
+  {/* Purchase Rate */}
+  <td style={{ border: "1px solid #999" }}>
+    <input
+      type="number"
+      value={fuel?.HSD?.purchaseRate || ""}
+      readOnly
+    />
+  </td>
+
+  {/* Sale Rate */}
+  <td style={{ border: "1px solid #999" }}>
+    <input
+      type="number"
+      value={fuel?.HSD?.saleRate || ""}
+      readOnly
+    />
+  </td>
+
+  {/* Per Unit Profit */}
+  <td style={{ border: "1px solid #999" }}>
+    {getPerLiterProfit("HSD2").toFixed(2)}
+  </td>
+
+  {/* Total Profit */}
+  <td style={{ border: "1px solid #999" }}>
+    {getTotalProfit("HSD2").toFixed(2)}
+  </td>
+</tr>
+
+{/* ================= HSD TANK 3 ================= */}
+<tr>
+  <td style={{ border: "1px solid #999", fontWeight: "bold" }}>
+    HSD TANK 3
+  </td>
+
+  {/* Opening - Previous Day Closing - AUTO */}
+  <td style={{ border: "1px solid #999" }}>
+    <input
+      type="number"
+      value={stockGain.HSD3?.opening ?? ""}
+      readOnly
+    />
+  </td>
+
+  {/* Received - MANUAL */}
+  <td style={{ border: "1px solid #999" }}>
+    <input
+      type="number"
+      value={stockGain.HSD3?.receipt ?? ""}
+      onChange={(e) =>
+        handleStockGainChange(
+          "HSD3",
+          "receipt",
+          e.target.value
+        )
+      }
+    />
+  </td>
+
+  {/* Sale - HSD-5 + HSD-6 + HSD-7 + HSD-8 */}
+  <td style={{ border: "1px solid #999" }}>
+    <input
+      type="number"
+      value={getTotalSaleHSD3().toFixed(2)}
+      readOnly
+    />
+  </td>
+
+  {/* Closing - MANUAL */}
+  <td style={{ border: "1px solid #999" }}>
+    <input
+      type="number"
+      value={stockGain.HSD3?.closing ?? ""}
+      onChange={(e) =>
+        handleStockGainChange(
+          "HSD3",
+          "closing",
+          e.target.value
+        )
+      }
+    />
+  </td>
+
+  {/* Purchase Rate */}
+  <td style={{ border: "1px solid #999" }}>
+    <input
+      type="number"
+      value={fuel?.HSD?.purchaseRate || ""}
+      readOnly
+    />
+  </td>
+
+  {/* Sale Rate */}
+  <td style={{ border: "1px solid #999" }}>
+    <input
+      type="number"
+      value={fuel?.HSD?.saleRate || ""}
+      readOnly
+    />
+  </td>
+
+  {/* Per Unit Profit */}
+  <td style={{ border: "1px solid #999" }}>
+    {getPerLiterProfit("HSD3").toFixed(2)}
+  </td>
+
+  {/* Total Profit */}
+  <td style={{ border: "1px solid #999" }}>
+    {getTotalProfit("HSD3").toFixed(2)}
+  </td>
+</tr>
+    
 
 
     {/* ================= PMG ================= */}
@@ -1513,6 +1931,7 @@ return (
         <input
           type="number"
           value={stockGain.PMG?.opening ?? ""}
+     readOnly
           onChange={(e) =>
             handleStockGainChange(
               "PMG",
@@ -1542,7 +1961,7 @@ return (
       <td style={{ border: "1px solid #999" }}>
         <input
           type="number"
-          value={getPMGTotal().toFixed(2)}
+          value={getTotalSalePMG().toFixed(2)}
           readOnly
         />
       </td>
@@ -1603,6 +2022,7 @@ return (
         <input
           type="number"
           value={stockGain.SVP?.opening ?? ""}
+     readOnly
           onChange={(e) =>
             handleStockGainChange(
               "SVP",
@@ -1632,7 +2052,7 @@ return (
       <td style={{ border: "1px solid #999" }}>
         <input
           type="number"
-          value={getSVPTotal().toFixed(2)}
+          value={getTotalSaleSVP().toFixed(2)}
           readOnly
         />
       </td>
@@ -1708,7 +2128,7 @@ return (
   </tbody>
 </table>
 
-        </div>
+        </div>
 
 {/* ================= STOCK GAIN / LOSS ================= */}
 
@@ -1860,9 +2280,9 @@ return (
 
               <div className="report-box">
 
-          <h2>Price Gain / Loss</h2>
+          <h2>Price Gain / Loss</h2>
 
-        <table
+        <table
   style={{
     width: "100%",
     borderCollapse: "collapse",
@@ -2174,1375 +2594,1394 @@ return (
 
   </tbody>
 </table>
-        </div>
+        </div>
 
-      </div>
+      </div>
 
-            {/* ================= Lubricant Profit ================= */}
+            {/* ================= Lubricant Profit ================= */}
 
-      <div className="report-box full-width">
+      <div className="report-box full-width">
 
-        <h2>Lubricant Profit</h2>
+        <h2>Lubricant Profit</h2>
 
-        <table>
+        <table>
 
-          <thead>
+          <thead>
 
-            <tr>
+            <tr>
 
-              <th>Product</th>
-              <th>Opening</th>
-              <th>Received</th>
-              <th>Closing</th>
-              <th>Sale</th>
-              <th>Purchase Rate</th>
-              <th>Sale Rate</th>
-              <th>Per Unit Profit</th>
-              <th>Total Profit</th>
+              <th>Product</th>
+              <th>Opening</th>
+              <th>Received</th>
+              <th>Closing</th>
+              <th>Sale</th>
+              <th>Purchase Rate</th>
+              <th>Sale Rate</th>
+              <th>Per Unit Profit</th>
+              <th>Total Profit</th>
 
-            </tr>
+            </tr>
 
-          </thead>
+          </thead>
 
-          <tbody>
+          <tbody>
 
 <tr>
-  <td>Rimula C 4L R-1</td>
+  <td>Rimula C 4L R-1</td>
 
-  {/* Opening */}
-  <td>
-    <input
-      type="number"
-      value={lubeData["Rimula C 4L R-1"]?.opening || 0}
-      onChange={(e) =>
-        handleLubeChange("Rimula C 4L R-1", "opening", e.target.value)
-      }
-    />
-  </td>
+  {/* Opening */}
+  <td>
+    <input
+      type="number"
+      value={lubeData["Rimula C 4L R-1"]?.opening || 0}
+     readOnly
+      onChange={(e) =>
+        handleLubeChange("Rimula C 4L R-1", "opening", e.target.value)
+      }
+    />
+  </td>
 
-  {/* Received */}
-  <td>
-    <input
-      type="number"
-      value={lubeData["Rimula C 4L R-1"]?.received || 0}
-      onChange={(e) =>
-        handleLubeChange("Rimula C 4L R-1", "received", e.target.value)
-      }
-    />
-  </td>
+  {/* Received */}
+  <td>
+    <input
+      type="number"
+      value={lubeData["Rimula C 4L R-1"]?.received || 0}
+      onChange={(e) =>
+        handleLubeChange("Rimula C 4L R-1", "received", e.target.value)
+      }
+    />
+  </td>
 
-  {/* Closing */}
-  <td>
-    <input
-      type="number"
-      value={lubeData["Rimula C 4L R-1"]?.closing || 0}
-      onChange={(e) =>
-        handleLubeChange("Rimula C 4L R-1", "closing", e.target.value)
-      }
-    />
-  </td>
+  {/* Closing */}
+  <td>
+    <input
+      type="number"
+      value={lubeData["Rimula C 4L R-1"]?.closing || 0}
+      onChange={(e) =>
+        handleLubeChange("Rimula C 4L R-1", "closing", e.target.value)
+      }
+    />
+  </td>
 
-  {/* Sale Auto */}
-  <td>{getLubeSale("Rimula C 4L R-1")}</td>
+  {/* Sale Auto */}
+  <td>{getLubeSale("Rimula C 4L R-1")}</td>
 
-  {/* Purchase Rate */}
-  <td>
-    <input
-      type="number"
-      value={lubeRates["Rimula C 4L R-1"]?.purchaseRate || 0}
-      readOnly
-    />
-  </td>
+  {/* Purchase Rate */}
+  <td>
+    <input
+      type="number"
+      value={lubeRates["Rimula C 4L R-1"]?.purchaseRate || 0}
+      readOnly
+    />
+  </td>
 
-  {/* Sale Rate */}
-  <td>
-    <input
-      type="number"
-      value={lubeRates["Rimula C 4L R-1"]?.saleRate || 0}
-      readOnly
-    />
-  </td>
+  {/* Sale Rate */}
+  <td>
+    <input
+      type="number"
+      value={lubeRates["Rimula C 4L R-1"]?.saleRate || 0}
+      readOnly
+    />
+  </td>
 
-  {/* Per Unit Profit */}
-  <td>
-    {(
-      (lubeRates["Rimula C 4L R-1"]?.saleRate || 0) -
-      (lubeRates["Rimula C 4L R-1"]?.purchaseRate || 0)
-    ).toFixed(2)}
-  </td>
+  {/* Per Unit Profit */}
+  <td>
+    {(
+      (lubeRates["Rimula C 4L R-1"]?.saleRate || 0) -
+      (lubeRates["Rimula C 4L R-1"]?.purchaseRate || 0)
+    ).toFixed(2)}
+  </td>
 
-  {/* Total Profit */}
-  <td>
-    {(
-      getLubeSale("Rimula C 4L R-1") *
-      (
-        (lubeRates["Rimula C 4L R-1"]?.saleRate || 0) -
-        (lubeRates["Rimula C 4L R-1"]?.purchaseRate || 0)
-      )
-    ).toFixed(2)}
-  </td>
+  {/* Total Profit */}
+  <td>
+    {(
+      getLubeSale("Rimula C 4L R-1") *
+      (
+        (lubeRates["Rimula C 4L R-1"]?.saleRate || 0) -
+        (lubeRates["Rimula C 4L R-1"]?.purchaseRate || 0)
+      )
+    ).toFixed(2)}
+  </td>
 </tr>
 <tr>
-  <td>Rimula C 10L R-1</td>
+  <td>Rimula C 10L R-1</td>
 
-  {/* Opening */}
-  <td>
-    <input
-      type="number"
-      value={lubeData["Rimula C 10L R-1"]?.opening || 0}
-      onChange={(e) =>
-        handleLubeChange("Rimula C 10L R-1", "opening", e.target.value)
-      }
-    />
-  </td>
+  {/* Opening */}
+  <td>
+    <input
+      type="number"
+      value={lubeData["Rimula C 10L R-1"]?.opening || 0}
+     readOnly
+      onChange={(e) =>
+        handleLubeChange("Rimula C 10L R-1", "opening", e.target.value)
+      }
+    />
+  </td>
 
-  {/* Received */}
-  <td>
-    <input
-      type="number"
-      value={lubeData["Rimula C 10L R-1"]?.received || 0}
-      onChange={(e) =>
-        handleLubeChange("Rimula C 10L R-1", "received", e.target.value)
-      }
-    />
-  </td>
+  {/* Received */}
+  <td>
+    <input
+      type="number"
+      value={lubeData["Rimula C 10L R-1"]?.received || 0}
+      onChange={(e) =>
+        handleLubeChange("Rimula C 10L R-1", "received", e.target.value)
+      }
+    />
+  </td>
 
-  {/* Closing */}
-  <td>
-    <input
-      type="number"
-      value={lubeData["Rimula C 10L R-1"]?.closing || 0}
-      onChange={(e) =>
-        handleLubeChange("Rimula C 10L R-1", "closing", e.target.value)
-      }
-    />
-  </td>
+  {/* Closing */}
+  <td>
+    <input
+      type="number"
+      value={lubeData["Rimula C 10L R-1"]?.closing || 0}
+      onChange={(e) =>
+        handleLubeChange("Rimula C 10L R-1", "closing", e.target.value)
+      }
+    />
+  </td>
 
-  {/* Sale */}
-  <td>{getLubeSale("Rimula C 10L R-1")}</td>
+  {/* Sale */}
+  <td>{getLubeSale("Rimula C 10L R-1")}</td>
 
-  {/* Purchase Rate */}
-  <td>
-    <input
-      type="number"
-      value={lubeRates["Rimula C 10L R-1"]?.purchaseRate || 0}
-      readOnly
-    />
-  </td>
+  {/* Purchase Rate */}
+  <td>
+    <input
+      type="number"
+      value={lubeRates["Rimula C 10L R-1"]?.purchaseRate || 0}
+      readOnly
+    />
+  </td>
 
-  {/* Sale Rate */}
-  <td>
-    <input
-      type="number"
-      value={lubeRates["Rimula C 10L R-1"]?.saleRate || 0}
-      readOnly
-    />
-  </td>
+  {/* Sale Rate */}
+  <td>
+    <input
+      type="number"
+      value={lubeRates["Rimula C 10L R-1"]?.saleRate || 0}
+      readOnly
+    />
+  </td>
 
-  {/* Per Unit Profit */}
-  <td>
-    {(
-      (lubeRates["Rimula C 10L R-1"]?.saleRate || 0) -
-      (lubeRates["Rimula C 10L R-1"]?.purchaseRate || 0)
-    ).toFixed(2)}
-  </td>
+  {/* Per Unit Profit */}
+  <td>
+    {(
+      (lubeRates["Rimula C 10L R-1"]?.saleRate || 0) -
+      (lubeRates["Rimula C 10L R-1"]?.purchaseRate || 0)
+    ).toFixed(2)}
+  </td>
 
-  {/* Total Profit */}
-  <td>
-    {(
-      getLubeSale("Rimula C 10L R-1") *
-      (
-        (lubeRates["Rimula C 10L R-1"]?.saleRate || 0) -
-        (lubeRates["Rimula C 10L R-1"]?.purchaseRate || 0)
-      )
-    ).toFixed(2)}
-  </td>
-</tr>
-
-<tr>
-  <td>Rimula D 4L R-2</td>
-
-  {/* Opening */}
-  <td>
-    <input
-      type="number"
-      value={lubeData["Rimula D 4L R-2"]?.opening || 0}
-      onChange={(e) =>
-        handleLubeChange("Rimula D 4L R-2", "opening", e.target.value)
-      }
-    />
-  </td>
-
-  {/* Received */}
-  <td>
-    <input
-      type="number"
-      value={lubeData["Rimula D 4L R-2"]?.received || 0}
-      onChange={(e) =>
-        handleLubeChange("Rimula D 4L R-2", "received", e.target.value)
-      }
-    />
-  </td>
-
-  {/* Closing */}
-  <td>
-    <input
-      type="number"
-      value={lubeData["Rimula D 4L R-2"]?.closing || 0}
-      onChange={(e) =>
-        handleLubeChange("Rimula D 4L R-2", "closing", e.target.value)
-      }
-    />
-  </td>
-
-  {/* Sale */}
-  <td>{getLubeSale("Rimula D 4L R-2")}</td>
-
-  {/* Purchase Rate */}
-  <td>
-    <input
-      type="number"
-      value={lubeRates["Rimula D 4L R-2"]?.purchaseRate || 0}
-      readOnly
-    />
-  </td>
-
-  {/* Sale Rate */}
-  <td>
-    <input
-      type="number"
-      value={lubeRates["Rimula D 4L R-2"]?.saleRate || 0}
-      readOnly
-    />
-  </td>
-
-  {/* Per Unit Profit */}
-  <td>
-    {(
-      (lubeRates["Rimula D 4L R-2"]?.saleRate || 0) -
-      (lubeRates["Rimula D 4L R-2"]?.purchaseRate || 0)
-    ).toFixed(2)}
-  </td>
-
-  {/* Total Profit */}
-  <td>
-    {(
-      getLubeSale("Rimula D 4L R-2") *
-      (
-        (lubeRates["Rimula D 4L R-2"]?.saleRate || 0) -
-        (lubeRates["Rimula D 4L R-2"]?.purchaseRate || 0)
-      )
-    ).toFixed(2)}
-  </td>
-</tr>
-<tr>
-  <td>Rimula D 10L R-2</td>
-
-  {/* Opening */}
-  <td>
-    <input
-      type="number"
-      value={lubeData["Rimula D 10L R-2"]?.opening || 0}
-      onChange={(e) =>
-        handleLubeChange("Rimula D 10L R-2", "opening", e.target.value)
-      }
-    />
-  </td>
-
-  {/* Received */}
-  <td>
-    <input
-      type="number"
-      value={lubeData["Rimula D 10L R-2"]?.received || 0}
-      onChange={(e) =>
-        handleLubeChange("Rimula D 10L R-2", "received", e.target.value)
-      }
-    />
-  </td>
-
-  {/* Closing */}
-  <td>
-    <input
-      type="number"
-      value={lubeData["Rimula D 10L R-2"]?.closing || 0}
-      onChange={(e) =>
-        handleLubeChange("Rimula D 10L R-2", "closing", e.target.value)
-      }
-    />
-  </td>
-
-  {/* Sale */}
-  <td>{getLubeSale("Rimula D 10L R-2")}</td>
-
-  {/* Purchase Rate */}
-  <td>
-    <input
-      type="number"
-      value={lubeRates["Rimula D 10L R-2"]?.purchaseRate || 0}
-      readOnly
-    />
-  </td>
-
-  {/* Sale Rate */}
-  <td>
-    <input
-      type="number"
-      value={lubeRates["Rimula D 10L R-2"]?.saleRate || 0}
-      readOnly
-    />
-  </td>
-
-  {/* Per Unit Profit */}
-  <td>
-    {(
-      (lubeRates["Rimula D 10L R-2"]?.saleRate || 0) -
-      (lubeRates["Rimula D 10L R-2"]?.purchaseRate || 0)
-    ).toFixed(2)}
-  </td>
-
-  {/* Total Profit */}
-  <td>
-    {(
-      getLubeSale("Rimula D 10L R-2") *
-      (
-        (lubeRates["Rimula D 10L R-2"]?.saleRate || 0) -
-        (lubeRates["Rimula D 10L R-2"]?.purchaseRate || 0)
-      )
-    ).toFixed(2)}
-  </td>
-</tr>
-<tr>
-  <td>Rimula X 4L R-4</td>
-
-  <td>
-    <input
-      type="number"
-      value={lubeData["Rimula X 4L R-4"]?.opening || 0}
-      onChange={(e) =>
-        handleLubeChange("Rimula X 4L R-4", "opening", e.target.value)
-      }
-    />
-  </td>
-
-  <td>
-    <input
-      type="number"
-      value={lubeData["Rimula X 4L R-4"]?.received || 0}
-      onChange={(e) =>
-        handleLubeChange("Rimula X 4L R-4", "received", e.target.value)
-      }
-    />
-  </td>
-
-  <td>
-    <input
-      type="number"
-      value={lubeData["Rimula X 4L R-4"]?.closing || 0}
-      onChange={(e) =>
-        handleLubeChange("Rimula X 4L R-4", "closing", e.target.value)
-      }
-    />
-  </td>
-
-  <td>{getLubeSale("Rimula X 4L R-4")}</td>
-
-  <td>
-    <input
-      type="number"
-      value={lubeRates["Rimula X 4L R-4"]?.purchaseRate || 0}
-      readOnly
-    />
-  </td>
-
-  <td>
-    <input
-      type="number"
-      value={lubeRates["Rimula X 4L R-4"]?.saleRate || 0}
-      readOnly
-    />
-  </td>
-
-  <td>
-    {(
-      (lubeRates["Rimula X 4L R-4"]?.saleRate || 0) -
-      (lubeRates["Rimula X 4L R-4"]?.purchaseRate || 0)
-    ).toFixed(2)}
-  </td>
-
-  <td>
-    {(
-      getLubeSale("Rimula X 4L R-4") *
-      (
-        (lubeRates["Rimula X 4L R-4"]?.saleRate || 0) -
-        (lubeRates["Rimula X 4L R-4"]?.purchaseRate || 0)
-      )
-    ).toFixed(2)}
-  </td>
-</tr>
-<tr>
-  <td>Rimula X 10L R-4</td>
-
-  <td>
-    <input
-      type="number"
-      value={lubeData["Rimula X 10L R-4"]?.opening || 0}
-      onChange={(e) =>
-        handleLubeChange("Rimula X 10L R-4", "opening", e.target.value)
-      }
-    />
-  </td>
-
-  <td>
-    <input
-      type="number"
-      value={lubeData["Rimula X 10L R-4"]?.received || 0}
-      onChange={(e) =>
-        handleLubeChange("Rimula X 10L R-4", "received", e.target.value)
-      }
-    />
-  </td>
-
-  <td>
-    <input
-      type="number"
-      value={lubeData["Rimula X 10L R-4"]?.closing || 0}
-      onChange={(e) =>
-        handleLubeChange("Rimula X 10L R-4", "closing", e.target.value)
-      }
-    />
-  </td>
-
-  <td>{getLubeSale("Rimula X 10L R-4")}</td>
-
-  <td>
-    <input
-      type="number"
-      value={lubeRates["Rimula X 10L R-4"]?.purchaseRate || 0}
-      readOnly
-    />
-  </td>
-
-  <td>
-    <input
-      type="number"
-      value={lubeRates["Rimula X 10L R-4"]?.saleRate || 0}
-      readOnly
-    />
-  </td>
-
-  <td>
-    {(
-      (lubeRates["Rimula X 10L R-4"]?.saleRate || 0) -
-      (lubeRates["Rimula X 10L R-4"]?.purchaseRate || 0)
-    ).toFixed(2)}
-  </td>
-
-  <td>
-    {(
-      getLubeSale("Rimula X 10L R-4") *
-      (
-        (lubeRates["Rimula X 10L R-4"]?.saleRate || 0) -
-        (lubeRates["Rimula X 10L R-4"]?.purchaseRate || 0)
-      )
-    ).toFixed(2)}
-  </td>
+  {/* Total Profit */}
+  <td>
+    {(
+      getLubeSale("Rimula C 10L R-1") *
+      (
+        (lubeRates["Rimula C 10L R-1"]?.saleRate || 0) -
+        (lubeRates["Rimula C 10L R-1"]?.purchaseRate || 0)
+      )
+    ).toFixed(2)}
+  </td>
 </tr>
 
 <tr>
-  <td>HELIX ULTRA PC-3</td>
+  <td>Rimula D 4L R-2</td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["HELIX ULTRA PC-3"]?.opening || 0}
-      onChange={(e) =>
-        handleLubeChange("HELIX ULTRA PC-3", "opening", e.target.value)
-      }
-    />
-  </td>
+  {/* Opening */}
+  <td>
+    <input
+      type="number"
+      value={lubeData["Rimula D 4L R-2"]?.opening || 0}
+     readOnly
+      onChange={(e) =>
+        handleLubeChange("Rimula D 4L R-2", "opening", e.target.value)
+      }
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["HELIX ULTRA PC-3"]?.received || 0}
-      onChange={(e) =>
-        handleLubeChange("HELIX ULTRA PC-3", "received", e.target.value)
-      }
-    />
-  </td>
+  {/* Received */}
+  <td>
+    <input
+      type="number"
+      value={lubeData["Rimula D 4L R-2"]?.received || 0}
+      onChange={(e) =>
+        handleLubeChange("Rimula D 4L R-2", "received", e.target.value)
+      }
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["HELIX ULTRA PC-3"]?.closing || 0}
-      onChange={(e) =>
-        handleLubeChange("HELIX ULTRA PC-3", "closing", e.target.value)
-      }
-    />
-  </td>
+  {/* Closing */}
+  <td>
+    <input
+      type="number"
+      value={lubeData["Rimula D 4L R-2"]?.closing || 0}
+      onChange={(e) =>
+        handleLubeChange("Rimula D 4L R-2", "closing", e.target.value)
+      }
+    />
+  </td>
 
-  <td>{getLubeSale("HELIX ULTRA PC-3")}</td>
+  {/* Sale */}
+  <td>{getLubeSale("Rimula D 4L R-2")}</td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeRates["HELIX ULTRA PC-3"]?.purchaseRate || 0}
-      readOnly
-    />
-  </td>
+  {/* Purchase Rate */}
+  <td>
+    <input
+      type="number"
+      value={lubeRates["Rimula D 4L R-2"]?.purchaseRate || 0}
+      readOnly
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeRates["HELIX ULTRA PC-3"]?.saleRate || 0}
-      readOnly
-    />
-  </td>
+  {/* Sale Rate */}
+  <td>
+    <input
+      type="number"
+      value={lubeRates["Rimula D 4L R-2"]?.saleRate || 0}
+      readOnly
+    />
+  </td>
 
-  <td>
-    {(
-      (lubeRates["HELIX ULTRA PC-3"]?.saleRate || 0) -
-      (lubeRates["HELIX ULTRA PC-3"]?.purchaseRate || 0)
-    ).toFixed(2)}
-  </td>
+  {/* Per Unit Profit */}
+  <td>
+    {(
+      (lubeRates["Rimula D 4L R-2"]?.saleRate || 0) -
+      (lubeRates["Rimula D 4L R-2"]?.purchaseRate || 0)
+    ).toFixed(2)}
+  </td>
 
-  <td>
-    {(
-      getLubeSale("HELIX ULTRA PC-3") *
-      (
-        (lubeRates["HELIX ULTRA PC-3"]?.saleRate || 0) -
-        (lubeRates["HELIX ULTRA PC-3"]?.purchaseRate || 0)
-      )
-    ).toFixed(2)}
-  </td>
+  {/* Total Profit */}
+  <td>
+    {(
+      getLubeSale("Rimula D 4L R-2") *
+      (
+        (lubeRates["Rimula D 4L R-2"]?.saleRate || 0) -
+        (lubeRates["Rimula D 4L R-2"]?.purchaseRate || 0)
+      )
+    ).toFixed(2)}
+  </td>
+</tr>
+<tr>
+  <td>Rimula D 10L R-2</td>
+
+  {/* Opening */}
+  <td>
+    <input
+      type="number"
+      value={lubeData["Rimula D 10L R-2"]?.opening || 0}
+     readOnly
+      onChange={(e) =>
+        handleLubeChange("Rimula D 10L R-2", "opening", e.target.value)
+      }
+    />
+  </td>
+
+  {/* Received */}
+  <td>
+    <input
+      type="number"
+      value={lubeData["Rimula D 10L R-2"]?.received || 0}
+      onChange={(e) =>
+        handleLubeChange("Rimula D 10L R-2", "received", e.target.value)
+      }
+    />
+  </td>
+
+  {/* Closing */}
+  <td>
+    <input
+      type="number"
+      value={lubeData["Rimula D 10L R-2"]?.closing || 0}
+      onChange={(e) =>
+        handleLubeChange("Rimula D 10L R-2", "closing", e.target.value)
+      }
+    />
+  </td>
+
+  {/* Sale */}
+  <td>{getLubeSale("Rimula D 10L R-2")}</td>
+
+  {/* Purchase Rate */}
+  <td>
+    <input
+      type="number"
+      value={lubeRates["Rimula D 10L R-2"]?.purchaseRate || 0}
+      readOnly
+    />
+  </td>
+
+  {/* Sale Rate */}
+  <td>
+    <input
+      type="number"
+      value={lubeRates["Rimula D 10L R-2"]?.saleRate || 0}
+      readOnly
+    />
+  </td>
+
+  {/* Per Unit Profit */}
+  <td>
+    {(
+      (lubeRates["Rimula D 10L R-2"]?.saleRate || 0) -
+      (lubeRates["Rimula D 10L R-2"]?.purchaseRate || 0)
+    ).toFixed(2)}
+  </td>
+
+  {/* Total Profit */}
+  <td>
+    {(
+      getLubeSale("Rimula D 10L R-2") *
+      (
+        (lubeRates["Rimula D 10L R-2"]?.saleRate || 0) -
+        (lubeRates["Rimula D 10L R-2"]?.purchaseRate || 0)
+      )
+    ).toFixed(2)}
+  </td>
+</tr>
+<tr>
+  <td>Rimula X 4L R-4</td>
+
+  <td>
+    <input
+      type="number"
+      value={lubeData["Rimula X 4L R-4"]?.opening || 0}
+     readOnly
+      onChange={(e) =>
+        handleLubeChange("Rimula X 4L R-4", "opening", e.target.value)
+      }
+    />
+  </td>
+
+  <td>
+    <input
+      type="number"
+      value={lubeData["Rimula X 4L R-4"]?.received || 0}
+      onChange={(e) =>
+        handleLubeChange("Rimula X 4L R-4", "received", e.target.value)
+      }
+    />
+  </td>
+
+  <td>
+    <input
+      type="number"
+      value={lubeData["Rimula X 4L R-4"]?.closing || 0}
+      onChange={(e) =>
+        handleLubeChange("Rimula X 4L R-4", "closing", e.target.value)
+      }
+    />
+  </td>
+
+  <td>{getLubeSale("Rimula X 4L R-4")}</td>
+
+  <td>
+    <input
+      type="number"
+      value={lubeRates["Rimula X 4L R-4"]?.purchaseRate || 0}
+      readOnly
+    />
+  </td>
+
+  <td>
+    <input
+      type="number"
+      value={lubeRates["Rimula X 4L R-4"]?.saleRate || 0}
+      readOnly
+    />
+  </td>
+
+  <td>
+    {(
+      (lubeRates["Rimula X 4L R-4"]?.saleRate || 0) -
+      (lubeRates["Rimula X 4L R-4"]?.purchaseRate || 0)
+    ).toFixed(2)}
+  </td>
+
+  <td>
+    {(
+      getLubeSale("Rimula X 4L R-4") *
+      (
+        (lubeRates["Rimula X 4L R-4"]?.saleRate || 0) -
+        (lubeRates["Rimula X 4L R-4"]?.purchaseRate || 0)
+      )
+    ).toFixed(2)}
+  </td>
+</tr>
+<tr>
+  <td>Rimula X 10L R-4</td>
+
+  <td>
+    <input
+      type="number"
+      value={lubeData["Rimula X 10L R-4"]?.opening || 0}
+     readOnly
+      onChange={(e) =>
+        handleLubeChange("Rimula X 10L R-4", "opening", e.target.value)
+      }
+    />
+  </td>
+
+  <td>
+    <input
+      type="number"
+      value={lubeData["Rimula X 10L R-4"]?.received || 0}
+      onChange={(e) =>
+        handleLubeChange("Rimula X 10L R-4", "received", e.target.value)
+      }
+    />
+  </td>
+
+  <td>
+    <input
+      type="number"
+      value={lubeData["Rimula X 10L R-4"]?.closing || 0}
+      onChange={(e) =>
+        handleLubeChange("Rimula X 10L R-4", "closing", e.target.value)
+      }
+    />
+  </td>
+
+  <td>{getLubeSale("Rimula X 10L R-4")}</td>
+
+  <td>
+    <input
+      type="number"
+      value={lubeRates["Rimula X 10L R-4"]?.purchaseRate || 0}
+      readOnly
+    />
+  </td>
+
+  <td>
+    <input
+      type="number"
+      value={lubeRates["Rimula X 10L R-4"]?.saleRate || 0}
+      readOnly
+    />
+  </td>
+
+  <td>
+    {(
+      (lubeRates["Rimula X 10L R-4"]?.saleRate || 0) -
+      (lubeRates["Rimula X 10L R-4"]?.purchaseRate || 0)
+    ).toFixed(2)}
+  </td>
+
+  <td>
+    {(
+      getLubeSale("Rimula X 10L R-4") *
+      (
+        (lubeRates["Rimula X 10L R-4"]?.saleRate || 0) -
+        (lubeRates["Rimula X 10L R-4"]?.purchaseRate || 0)
+      )
+    ).toFixed(2)}
+  </td>
 </tr>
 
 <tr>
-  <td>HELIX ULTRA PC-4</td>
+  <td>HELIX ULTRA PC-3</td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["HELIX ULTRA PC-4"]?.opening || 0}
-      onChange={(e) =>
-        handleLubeChange("HELIX ULTRA PC-4", "opening", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["HELIX ULTRA PC-3"]?.opening || 0}
+     readOnly
+      onChange={(e) =>
+        handleLubeChange("HELIX ULTRA PC-3", "opening", e.target.value)
+      }
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["HELIX ULTRA PC-4"]?.received || 0}
-      onChange={(e) =>
-        handleLubeChange("HELIX ULTRA PC-4", "received", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["HELIX ULTRA PC-3"]?.received || 0}
+      onChange={(e) =>
+        handleLubeChange("HELIX ULTRA PC-3", "received", e.target.value)
+      }
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["HELIX ULTRA PC-4"]?.closing || 0}
-      onChange={(e) =>
-        handleLubeChange("HELIX ULTRA PC-4", "closing", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["HELIX ULTRA PC-3"]?.closing || 0}
+      onChange={(e) =>
+        handleLubeChange("HELIX ULTRA PC-3", "closing", e.target.value)
+      }
+    />
+  </td>
 
-  <td>{getLubeSale("HELIX ULTRA PC-4")}</td>
+  <td>{getLubeSale("HELIX ULTRA PC-3")}</td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeRates["HELIX ULTRA PC-4"]?.purchaseRate || 0}
-      readOnly
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeRates["HELIX ULTRA PC-3"]?.purchaseRate || 0}
+      readOnly
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeRates["HELIX ULTRA PC-4"]?.saleRate || 0}
-      readOnly
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeRates["HELIX ULTRA PC-3"]?.saleRate || 0}
+      readOnly
+    />
+  </td>
 
-  <td>
-    {(
-      (lubeRates["HELIX ULTRA PC-4"]?.saleRate || 0) -
-      (lubeRates["HELIX ULTRA PC-4"]?.purchaseRate || 0)
-    ).toFixed(2)}
-  </td>
+  <td>
+    {(
+      (lubeRates["HELIX ULTRA PC-3"]?.saleRate || 0) -
+      (lubeRates["HELIX ULTRA PC-3"]?.purchaseRate || 0)
+    ).toFixed(2)}
+  </td>
 
-  <td>
-    {(
-      getLubeSale("HELIX ULTRA PC-4") *
-      (
-        (lubeRates["HELIX ULTRA PC-4"]?.saleRate || 0) -
-        (lubeRates["HELIX ULTRA PC-4"]?.purchaseRate || 0)
-      )
-    ).toFixed(2)}
-  </td>
+  <td>
+    {(
+      getLubeSale("HELIX ULTRA PC-3") *
+      (
+        (lubeRates["HELIX ULTRA PC-3"]?.saleRate || 0) -
+        (lubeRates["HELIX ULTRA PC-3"]?.purchaseRate || 0)
+      )
+    ).toFixed(2)}
+  </td>
 </tr>
 
 <tr>
-  <td>HX7 PC-3</td>
+  <td>HELIX ULTRA PC-4</td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["HX7 PC-3"]?.opening || 0}
-      onChange={(e) =>
-        handleLubeChange("HX7 PC-3", "opening", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["HELIX ULTRA PC-4"]?.opening || 0}
+     readOnly
+      onChange={(e) =>
+        handleLubeChange("HELIX ULTRA PC-4", "opening", e.target.value)
+      }
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["HX7 PC-3"]?.received || 0}
-      onChange={(e) =>
-        handleLubeChange("HX7 PC-3", "received", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["HELIX ULTRA PC-4"]?.received || 0}
+      onChange={(e) =>
+        handleLubeChange("HELIX ULTRA PC-4", "received", e.target.value)
+      }
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["HX7 PC-3"]?.closing || 0}
-      onChange={(e) =>
-        handleLubeChange("HX7 PC-3", "closing", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["HELIX ULTRA PC-4"]?.closing || 0}
+      onChange={(e) =>
+        handleLubeChange("HELIX ULTRA PC-4", "closing", e.target.value)
+      }
+    />
+  </td>
 
-  <td>{getLubeSale("HX7 PC-3")}</td>
+  <td>{getLubeSale("HELIX ULTRA PC-4")}</td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeRates["HX7 PC-3"]?.purchaseRate || 0}
-      readOnly
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeRates["HELIX ULTRA PC-4"]?.purchaseRate || 0}
+      readOnly
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeRates["HX7 PC-3"]?.saleRate || 0}
-      readOnly
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeRates["HELIX ULTRA PC-4"]?.saleRate || 0}
+      readOnly
+    />
+  </td>
 
-  <td>
-    {(
-      (lubeRates["HX7 PC-3"]?.saleRate || 0) -
-      (lubeRates["HX7 PC-3"]?.purchaseRate || 0)
-    ).toFixed(2)}
-  </td>
+  <td>
+    {(
+      (lubeRates["HELIX ULTRA PC-4"]?.saleRate || 0) -
+      (lubeRates["HELIX ULTRA PC-4"]?.purchaseRate || 0)
+    ).toFixed(2)}
+  </td>
 
-  <td>
-    {(
-      getLubeSale("HX7 PC-3") *
-      (
-        (lubeRates["HX7 PC-3"]?.saleRate || 0) -
-        (lubeRates["HX7 PC-3"]?.purchaseRate || 0)
-      )
-    ).toFixed(2)}
-  </td>
+  <td>
+    {(
+      getLubeSale("HELIX ULTRA PC-4") *
+      (
+        (lubeRates["HELIX ULTRA PC-4"]?.saleRate || 0) -
+        (lubeRates["HELIX ULTRA PC-4"]?.purchaseRate || 0)
+      )
+    ).toFixed(2)}
+  </td>
 </tr>
 
 <tr>
-  <td>HX7 PC-4</td>
+  <td>HX7 PC-3</td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["HX7 PC-4"]?.opening || 0}
-      onChange={(e) =>
-        handleLubeChange("HX7 PC-4", "opening", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["HX7 PC-3"]?.opening || 0}
+     readOnly
+      onChange={(e) =>
+        handleLubeChange("HX7 PC-3", "opening", e.target.value)
+      }
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["HX7 PC-4"]?.received || 0}
-      onChange={(e) =>
-        handleLubeChange("HX7 PC-4", "received", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["HX7 PC-3"]?.received || 0}
+      onChange={(e) =>
+        handleLubeChange("HX7 PC-3", "received", e.target.value)
+      }
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["HX7 PC-4"]?.closing || 0}
-      onChange={(e) =>
-        handleLubeChange("HX7 PC-4", "closing", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["HX7 PC-3"]?.closing || 0}
+      onChange={(e) =>
+        handleLubeChange("HX7 PC-3", "closing", e.target.value)
+      }
+    />
+  </td>
 
-  <td>{getLubeSale("HX7 PC-4")}</td>
+  <td>{getLubeSale("HX7 PC-3")}</td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeRates["HX7 PC-4"]?.purchaseRate || 0}
-      readOnly
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeRates["HX7 PC-3"]?.purchaseRate || 0}
+      readOnly
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeRates["HX7 PC-4"]?.saleRate || 0}
-      readOnly
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeRates["HX7 PC-3"]?.saleRate || 0}
+      readOnly
+    />
+  </td>
 
-  <td>
-    {(
-      (lubeRates["HX7 PC-4"]?.saleRate || 0) -
-      (lubeRates["HX7 PC-4"]?.purchaseRate || 0)
-    ).toFixed(2)}
-  </td>
+  <td>
+    {(
+      (lubeRates["HX7 PC-3"]?.saleRate || 0) -
+      (lubeRates["HX7 PC-3"]?.purchaseRate || 0)
+    ).toFixed(2)}
+  </td>
 
-  <td>
-    {(
-      getLubeSale("HX7 PC-4") *
-      (
-        (lubeRates["HX7 PC-4"]?.saleRate || 0) -
-        (lubeRates["HX7 PC-4"]?.purchaseRate || 0)
-      )
-    ).toFixed(2)}
-  </td>
+  <td>
+    {(
+      getLubeSale("HX7 PC-3") *
+      (
+        (lubeRates["HX7 PC-3"]?.saleRate || 0) -
+        (lubeRates["HX7 PC-3"]?.purchaseRate || 0)
+      )
+    ).toFixed(2)}
+  </td>
 </tr>
 
 <tr>
-  <td>HX6 PC-3</td>
+  <td>HX7 PC-4</td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["HX6 PC-3"]?.opening || 0}
-      onChange={(e) =>
-        handleLubeChange("HX6 PC-3", "opening", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["HX7 PC-4"]?.opening || 0}
+     readOnly
+      onChange={(e) =>
+        handleLubeChange("HX7 PC-4", "opening", e.target.value)
+      }
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["HX6 PC-3"]?.received || 0}
-      onChange={(e) =>
-        handleLubeChange("HX6 PC-3", "received", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["HX7 PC-4"]?.received || 0}
+      onChange={(e) =>
+        handleLubeChange("HX7 PC-4", "received", e.target.value)
+      }
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["HX6 PC-3"]?.closing || 0}
-      onChange={(e) =>
-        handleLubeChange("HX6 PC-3", "closing", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["HX7 PC-4"]?.closing || 0}
+      onChange={(e) =>
+        handleLubeChange("HX7 PC-4", "closing", e.target.value)
+      }
+    />
+  </td>
 
-  <td>{getLubeSale("HX6 PC-3")}</td>
+  <td>{getLubeSale("HX7 PC-4")}</td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeRates["HX6 PC-3"]?.purchaseRate || 0}
-      readOnly
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeRates["HX7 PC-4"]?.purchaseRate || 0}
+      readOnly
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeRates["HX6 PC-3"]?.saleRate || 0}
-      readOnly
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeRates["HX7 PC-4"]?.saleRate || 0}
+      readOnly
+    />
+  </td>
 
-  <td>
-    {(
-      (lubeRates["HX6 PC-3"]?.saleRate || 0) -
-      (lubeRates["HX6 PC-3"]?.purchaseRate || 0)
-    ).toFixed(2)}
-  </td>
+  <td>
+    {(
+      (lubeRates["HX7 PC-4"]?.saleRate || 0) -
+      (lubeRates["HX7 PC-4"]?.purchaseRate || 0)
+    ).toFixed(2)}
+  </td>
 
-  <td>
-    {(
-      getLubeSale("HX6 PC-3") *
-      (
-        (lubeRates["HX6 PC-3"]?.saleRate || 0) -
-        (lubeRates["HX6 PC-3"]?.purchaseRate || 0)
-      )
-    ).toFixed(2)}
-  </td>
+  <td>
+    {(
+      getLubeSale("HX7 PC-4") *
+      (
+        (lubeRates["HX7 PC-4"]?.saleRate || 0) -
+        (lubeRates["HX7 PC-4"]?.purchaseRate || 0)
+      )
+    ).toFixed(2)}
+  </td>
 </tr>
 
 <tr>
-  <td>HX6 PC-4</td>
+  <td>HX6 PC-3</td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["HX6 PC-4"]?.opening || 0}
-      onChange={(e) =>
-        handleLubeChange("HX6 PC-4", "opening", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["HX6 PC-3"]?.opening || 0}
+     readOnly
+      onChange={(e) =>
+        handleLubeChange("HX6 PC-3", "opening", e.target.value)
+      }
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["HX6 PC-4"]?.received || 0}
-      onChange={(e) =>
-        handleLubeChange("HX6 PC-4", "received", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["HX6 PC-3"]?.received || 0}
+      onChange={(e) =>
+        handleLubeChange("HX6 PC-3", "received", e.target.value)
+      }
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["HX6 PC-4"]?.closing || 0}
-      onChange={(e) =>
-        handleLubeChange("HX6 PC-4", "closing", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["HX6 PC-3"]?.closing || 0}
+      onChange={(e) =>
+        handleLubeChange("HX6 PC-3", "closing", e.target.value)
+      }
+    />
+  </td>
 
-  <td>{getLubeSale("HX6 PC-4")}</td>
+  <td>{getLubeSale("HX6 PC-3")}</td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeRates["HX6 PC-4"]?.purchaseRate || 0}
-      readOnly
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeRates["HX6 PC-3"]?.purchaseRate || 0}
+      readOnly
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeRates["HX6 PC-4"]?.saleRate || 0}
-      readOnly
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeRates["HX6 PC-3"]?.saleRate || 0}
+      readOnly
+    />
+  </td>
 
-  <td>
-    {(
-      (lubeRates["HX6 PC-4"]?.saleRate || 0) -
-      (lubeRates["HX6 PC-4"]?.purchaseRate || 0)
-    ).toFixed(2)}
-  </td>
+  <td>
+    {(
+      (lubeRates["HX6 PC-3"]?.saleRate || 0) -
+      (lubeRates["HX6 PC-3"]?.purchaseRate || 0)
+    ).toFixed(2)}
+  </td>
 
-  <td>
-    {(
-      getLubeSale("HX6 PC-4") *
-      (
-        (lubeRates["HX6 PC-4"]?.saleRate || 0) -
-        (lubeRates["HX6 PC-4"]?.purchaseRate || 0)
-      )
-    ).toFixed(2)}
-  </td>
+  <td>
+    {(
+      getLubeSale("HX6 PC-3") *
+      (
+        (lubeRates["HX6 PC-3"]?.saleRate || 0) -
+        (lubeRates["HX6 PC-3"]?.purchaseRate || 0)
+      )
+    ).toFixed(2)}
+  </td>
 </tr>
 
 <tr>
-  <td>HX3 PC-3</td>
+  <td>HX6 PC-4</td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["HX3 PC-3"]?.opening || 0}
-      onChange={(e) =>
-        handleLubeChange("HX3 PC-3", "opening", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["HX6 PC-4"]?.opening || 0}
+     readOnly
+      onChange={(e) =>
+        handleLubeChange("HX6 PC-4", "opening", e.target.value)
+      }
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["HX3 PC-3"]?.received || 0}
-      onChange={(e) =>
-        handleLubeChange("HX3 PC-3", "received", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["HX6 PC-4"]?.received || 0}
+      onChange={(e) =>
+        handleLubeChange("HX6 PC-4", "received", e.target.value)
+      }
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["HX3 PC-3"]?.closing || 0}
-      onChange={(e) =>
-        handleLubeChange("HX3 PC-3", "closing", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["HX6 PC-4"]?.closing || 0}
+      onChange={(e) =>
+        handleLubeChange("HX6 PC-4", "closing", e.target.value)
+      }
+    />
+  </td>
 
-  <td>{getLubeSale("HX3 PC-3")}</td>
+  <td>{getLubeSale("HX6 PC-4")}</td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeRates["HX3 PC-3"]?.purchaseRate || 0}
-      readOnly
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeRates["HX6 PC-4"]?.purchaseRate || 0}
+      readOnly
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeRates["HX3 PC-3"]?.saleRate || 0}
-      readOnly
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeRates["HX6 PC-4"]?.saleRate || 0}
+      readOnly
+    />
+  </td>
 
-  <td>
-    {(
-      (lubeRates["HX3 PC-3"]?.saleRate || 0) -
-      (lubeRates["HX3 PC-3"]?.purchaseRate || 0)
-    ).toFixed(2)}
-  </td>
+  <td>
+    {(
+      (lubeRates["HX6 PC-4"]?.saleRate || 0) -
+      (lubeRates["HX6 PC-4"]?.purchaseRate || 0)
+    ).toFixed(2)}
+  </td>
 
-  <td>
-    {(
-      getLubeSale("HX3 PC-3") *
-      (
-        (lubeRates["HX3 PC-3"]?.saleRate || 0) -
-        (lubeRates["HX3 PC-3"]?.purchaseRate || 0)
-      )
-    ).toFixed(2)}
-  </td>
+  <td>
+    {(
+      getLubeSale("HX6 PC-4") *
+      (
+        (lubeRates["HX6 PC-4"]?.saleRate || 0) -
+        (lubeRates["HX6 PC-4"]?.purchaseRate || 0)
+      )
+    ).toFixed(2)}
+  </td>
 </tr>
 
 <tr>
-  <td>HX3 PC-4</td>
+  <td>HX3 PC-3</td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["HX3 PC-4"]?.opening || 0}
-      onChange={(e) =>
-        handleLubeChange("HX3 PC-4", "opening", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["HX3 PC-3"]?.opening || 0}
+     readOnly
+      onChange={(e) =>
+        handleLubeChange("HX3 PC-3", "opening", e.target.value)
+      }
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["HX3 PC-4"]?.received || 0}
-      onChange={(e) =>
-        handleLubeChange("HX3 PC-4", "received", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["HX3 PC-3"]?.received || 0}
+      onChange={(e) =>
+        handleLubeChange("HX3 PC-3", "received", e.target.value)
+      }
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["HX3 PC-4"]?.closing || 0}
-      onChange={(e) =>
-        handleLubeChange("HX3 PC-4", "closing", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["HX3 PC-3"]?.closing || 0}
+      onChange={(e) =>
+        handleLubeChange("HX3 PC-3", "closing", e.target.value)
+      }
+    />
+  </td>
 
-  <td>{getLubeSale("HX3 PC-4")}</td>
+  <td>{getLubeSale("HX3 PC-3")}</td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeRates["HX3 PC-4"]?.purchaseRate || 0}
-      readOnly
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeRates["HX3 PC-3"]?.purchaseRate || 0}
+      readOnly
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeRates["HX3 PC-4"]?.saleRate || 0}
-      readOnly
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeRates["HX3 PC-3"]?.saleRate || 0}
+      readOnly
+    />
+  </td>
 
-  <td>
-    {(
-      (lubeRates["HX3 PC-4"]?.saleRate || 0) -
-      (lubeRates["HX3 PC-4"]?.purchaseRate || 0)
-    ).toFixed(2)}
-  </td>
+  <td>
+    {(
+      (lubeRates["HX3 PC-3"]?.saleRate || 0) -
+      (lubeRates["HX3 PC-3"]?.purchaseRate || 0)
+    ).toFixed(2)}
+  </td>
 
-  <td>
-    {(
-      getLubeSale("HX3 PC-4") *
-      (
-        (lubeRates["HX3 PC-4"]?.saleRate || 0) -
-        (lubeRates["HX3 PC-4"]?.purchaseRate || 0)
-      )
-    ).toFixed(2)}
-  </td>
+  <td>
+    {(
+      getLubeSale("HX3 PC-3") *
+      (
+        (lubeRates["HX3 PC-3"]?.saleRate || 0) -
+        (lubeRates["HX3 PC-3"]?.purchaseRate || 0)
+      )
+    ).toFixed(2)}
+  </td>
 </tr>
 
 <tr>
-  <td>Helix V.Power PC-3</td>
+  <td>HX3 PC-4</td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["Helix V.Power PC-3"]?.opening || 0}
-      onChange={(e) =>
-        handleLubeChange("Helix V.Power PC-3", "opening", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["HX3 PC-4"]?.opening || 0}
+     readOnly
+      onChange={(e) =>
+        handleLubeChange("HX3 PC-4", "opening", e.target.value)
+      }
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["Helix V.Power PC-3"]?.received || 0}
-      onChange={(e) =>
-        handleLubeChange("Helix V.Power PC-3", "received", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["HX3 PC-4"]?.received || 0}
+      onChange={(e) =>
+        handleLubeChange("HX3 PC-4", "received", e.target.value)
+      }
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["Helix V.Power PC-3"]?.closing || 0}
-      onChange={(e) =>
-        handleLubeChange("Helix V.Power PC-3", "closing", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["HX3 PC-4"]?.closing || 0}
+      onChange={(e) =>
+        handleLubeChange("HX3 PC-4", "closing", e.target.value)
+      }
+    />
+  </td>
 
-  <td>{getLubeSale("Helix V.Power PC-3")}</td>
+  <td>{getLubeSale("HX3 PC-4")}</td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeRates["Helix V.Power PC-3"]?.purchaseRate || 0}
-      readOnly
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeRates["HX3 PC-4"]?.purchaseRate || 0}
+      readOnly
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeRates["Helix V.Power PC-3"]?.saleRate || 0}
-      readOnly
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeRates["HX3 PC-4"]?.saleRate || 0}
+      readOnly
+    />
+  </td>
 
-  <td>
-    {(
-      (lubeRates["Helix V.Power PC-3"]?.saleRate || 0) -
-      (lubeRates["Helix V.Power PC-3"]?.purchaseRate || 0)
-    ).toFixed(2)}
-  </td>
+  <td>
+    {(
+      (lubeRates["HX3 PC-4"]?.saleRate || 0) -
+      (lubeRates["HX3 PC-4"]?.purchaseRate || 0)
+    ).toFixed(2)}
+  </td>
 
-  <td>
-    {(
-      getLubeSale("Helix V.Power PC-3") *
-      (
-        (lubeRates["Helix V.Power PC-3"]?.saleRate || 0) -
-        (lubeRates["Helix V.Power PC-3"]?.purchaseRate || 0)
-      )
-    ).toFixed(2)}
-  </td>
+  <td>
+    {(
+      getLubeSale("HX3 PC-4") *
+      (
+        (lubeRates["HX3 PC-4"]?.saleRate || 0) -
+        (lubeRates["HX3 PC-4"]?.purchaseRate || 0)
+      )
+    ).toFixed(2)}
+  </td>
 </tr>
 
 <tr>
-  <td>Helix V.Power PC-4</td>
+  <td>Helix V.Power PC-3</td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["Helix V.Power PC-4"]?.opening || 0}
-      onChange={(e) =>
-        handleLubeChange("Helix V.Power PC-4", "opening", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["Helix V.Power PC-3"]?.opening || 0}
+     readOnly
+      onChange={(e) =>
+        handleLubeChange("Helix V.Power PC-3", "opening", e.target.value)
+      }
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["Helix V.Power PC-4"]?.received || 0}
-      onChange={(e) =>
-        handleLubeChange("Helix V.Power PC-4", "received", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["Helix V.Power PC-3"]?.received || 0}
+      onChange={(e) =>
+        handleLubeChange("Helix V.Power PC-3", "received", e.target.value)
+      }
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["Helix V.Power PC-4"]?.closing || 0}
-      onChange={(e) =>
-        handleLubeChange("Helix V.Power PC-4", "closing", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["Helix V.Power PC-3"]?.closing || 0}
+      onChange={(e) =>
+        handleLubeChange("Helix V.Power PC-3", "closing", e.target.value)
+      }
+    />
+  </td>
 
-  <td>{getLubeSale("Helix V.Power PC-4")}</td>
+  <td>{getLubeSale("Helix V.Power PC-3")}</td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeRates["Helix V.Power PC-4"]?.purchaseRate || 0}
-      readOnly
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeRates["Helix V.Power PC-3"]?.purchaseRate || 0}
+      readOnly
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeRates["Helix V.Power PC-4"]?.saleRate || 0}
-      readOnly
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeRates["Helix V.Power PC-3"]?.saleRate || 0}
+      readOnly
+    />
+  </td>
 
-  <td>
-    {(
-      (lubeRates["Helix V.Power PC-4"]?.saleRate || 0) -
-      (lubeRates["Helix V.Power PC-4"]?.purchaseRate || 0)
-    ).toFixed(2)}
-  </td>
+  <td>
+    {(
+      (lubeRates["Helix V.Power PC-3"]?.saleRate || 0) -
+      (lubeRates["Helix V.Power PC-3"]?.purchaseRate || 0)
+    ).toFixed(2)}
+  </td>
 
-  <td>
-    {(
-      getLubeSale("Helix V.Power PC-4") *
-      (
-        (lubeRates["Helix V.Power PC-4"]?.saleRate || 0) -
-        (lubeRates["Helix V.Power PC-4"]?.purchaseRate || 0)
-      )
-    ).toFixed(2)}
-  </td>
+  <td>
+    {(
+      getLubeSale("Helix V.Power PC-3") *
+      (
+        (lubeRates["Helix V.Power PC-3"]?.saleRate || 0) -
+        (lubeRates["Helix V.Power PC-3"]?.purchaseRate || 0)
+      )
+    ).toFixed(2)}
+  </td>
 </tr>
 
 <tr>
-  <td>Shell Advance S4 0.7L</td>
+  <td>Helix V.Power PC-4</td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["Shell Advance S4 0.7L"]?.opening || 0}
-      onChange={(e) =>
-        handleLubeChange("Shell Advance S4 0.7L", "opening", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["Helix V.Power PC-4"]?.opening || 0}
+     readOnly
+      onChange={(e) =>
+        handleLubeChange("Helix V.Power PC-4", "opening", e.target.value)
+      }
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["Shell Advance S4 0.7L"]?.received || 0}
-      onChange={(e) =>
-        handleLubeChange("Shell Advance S4 0.7L", "received", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["Helix V.Power PC-4"]?.received || 0}
+      onChange={(e) =>
+        handleLubeChange("Helix V.Power PC-4", "received", e.target.value)
+      }
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["Shell Advance S4 0.7L"]?.closing || 0}
-      onChange={(e) =>
-        handleLubeChange("Shell Advance S4 0.7L", "closing", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["Helix V.Power PC-4"]?.closing || 0}
+      onChange={(e) =>
+        handleLubeChange("Helix V.Power PC-4", "closing", e.target.value)
+      }
+    />
+  </td>
 
-  <td>{getLubeSale("Shell Advance S4 0.7L")}</td>
+  <td>{getLubeSale("Helix V.Power PC-4")}</td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeRates["Shell Advance S4 0.7L"]?.purchaseRate || 0}
-      readOnly
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeRates["Helix V.Power PC-4"]?.purchaseRate || 0}
+      readOnly
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeRates["Shell Advance S4 0.7L"]?.saleRate || 0}
-      readOnly
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeRates["Helix V.Power PC-4"]?.saleRate || 0}
+      readOnly
+    />
+  </td>
 
-  <td>
-    {(
-      (lubeRates["Shell Advance S4 0.7L"]?.saleRate || 0) -
-      (lubeRates["Shell Advance S4 0.7L"]?.purchaseRate || 0)
-    ).toFixed(2)}
-  </td>
+  <td>
+    {(
+      (lubeRates["Helix V.Power PC-4"]?.saleRate || 0) -
+      (lubeRates["Helix V.Power PC-4"]?.purchaseRate || 0)
+    ).toFixed(2)}
+  </td>
 
-  <td>
-    {(
-      getLubeSale("Shell Advance S4 0.7L") *
-      (
-        (lubeRates["Shell Advance S4 0.7L"]?.saleRate || 0) -
-        (lubeRates["Shell Advance S4 0.7L"]?.purchaseRate || 0)
-      )
-    ).toFixed(2)}
-  </td>
+  <td>
+    {(
+      getLubeSale("Helix V.Power PC-4") *
+      (
+        (lubeRates["Helix V.Power PC-4"]?.saleRate || 0) -
+        (lubeRates["Helix V.Power PC-4"]?.purchaseRate || 0)
+      )
+    ).toFixed(2)}
+  </td>
 </tr>
 
 <tr>
-  <td>Shell Advance AX-5 1L</td>
+  <td>Shell Advance S4 0.7L</td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["Shell Advance AX-5 1L"]?.opening || 0}
-      onChange={(e) =>
-        handleLubeChange("Shell Advance AX-5 1L", "opening", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["Shell Advance S4 0.7L"]?.opening || 0}
+     readOnly
+      onChange={(e) =>
+        handleLubeChange("Shell Advance S4 0.7L", "opening", e.target.value)
+      }
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["Shell Advance AX-5 1L"]?.received || 0}
-      onChange={(e) =>
-        handleLubeChange("Shell Advance AX-5 1L", "received", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["Shell Advance S4 0.7L"]?.received || 0}
+      onChange={(e) =>
+        handleLubeChange("Shell Advance S4 0.7L", "received", e.target.value)
+      }
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["Shell Advance AX-5 1L"]?.closing || 0}
-      onChange={(e) =>
-        handleLubeChange("Shell Advance AX-5 1L", "closing", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["Shell Advance S4 0.7L"]?.closing || 0}
+      onChange={(e) =>
+        handleLubeChange("Shell Advance S4 0.7L", "closing", e.target.value)
+      }
+    />
+  </td>
 
-  <td>{getLubeSale("Shell Advance AX-5 1L")}</td>
+  <td>{getLubeSale("Shell Advance S4 0.7L")}</td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeRates["Shell Advance AX-5 1L"]?.purchaseRate || 0}
-      readOnly
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeRates["Shell Advance S4 0.7L"]?.purchaseRate || 0}
+      readOnly
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeRates["Shell Advance AX-5 1L"]?.saleRate || 0}
-      readOnly
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeRates["Shell Advance S4 0.7L"]?.saleRate || 0}
+      readOnly
+    />
+  </td>
 
-  <td>
-    {(
-      (lubeRates["Shell Advance AX-5 1L"]?.saleRate || 0) -
-      (lubeRates["Shell Advance AX-5 1L"]?.purchaseRate || 0)
-    ).toFixed(2)}
-  </td>
+  <td>
+    {(
+      (lubeRates["Shell Advance S4 0.7L"]?.saleRate || 0) -
+      (lubeRates["Shell Advance S4 0.7L"]?.purchaseRate || 0)
+    ).toFixed(2)}
+  </td>
 
-  <td>
-    {(
-      getLubeSale("Shell Advance AX-5 1L") *
-      (
-        (lubeRates["Shell Advance AX-5 1L"]?.saleRate || 0) -
-        (lubeRates["Shell Advance AX-5 1L"]?.purchaseRate || 0)
-      )
-    ).toFixed(2)}
-  </td>
+  <td>
+    {(
+      getLubeSale("Shell Advance S4 0.7L") *
+      (
+        (lubeRates["Shell Advance S4 0.7L"]?.saleRate || 0) -
+        (lubeRates["Shell Advance S4 0.7L"]?.purchaseRate || 0)
+      )
+    ).toFixed(2)}
+  </td>
 </tr>
 
 <tr>
-  <td>Shell Golden Oil</td>
+  <td>Shell Advance AX-5 1L</td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["Shell Golden Oil"]?.opening || 0}
-      onChange={(e) =>
-        handleLubeChange("Shell Golden Oil", "opening", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["Shell Advance AX-5 1L"]?.opening || 0}
+     readOnly
+      onChange={(e) =>
+        handleLubeChange("Shell Advance AX-5 1L", "opening", e.target.value)
+      }
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["Shell Golden Oil"]?.received || 0}
-      onChange={(e) =>
-        handleLubeChange("Shell Golden Oil", "received", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["Shell Advance AX-5 1L"]?.received || 0}
+      onChange={(e) =>
+        handleLubeChange("Shell Advance AX-5 1L", "received", e.target.value)
+      }
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeData["Shell Golden Oil"]?.closing || 0}
-      onChange={(e) =>
-        handleLubeChange("Shell Golden Oil", "closing", e.target.value)
-      }
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeData["Shell Advance AX-5 1L"]?.closing || 0}
+      onChange={(e) =>
+        handleLubeChange("Shell Advance AX-5 1L", "closing", e.target.value)
+      }
+    />
+  </td>
 
-  <td>{getLubeSale("Shell Golden Oil")}</td>
+  <td>{getLubeSale("Shell Advance AX-5 1L")}</td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeRates["Shell Golden Oil"]?.purchaseRate || 0}
-      readOnly
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeRates["Shell Advance AX-5 1L"]?.purchaseRate || 0}
+      readOnly
+    />
+  </td>
 
-  <td>
-    <input
-      type="number"
-      value={lubeRates["Shell Golden Oil"]?.saleRate || 0}
-      readOnly
-    />
-  </td>
+  <td>
+    <input
+      type="number"
+      value={lubeRates["Shell Advance AX-5 1L"]?.saleRate || 0}
+      readOnly
+    />
+  </td>
 
-  <td>
-    {(
-      (lubeRates["Shell Golden Oil"]?.saleRate || 0) -
-      (lubeRates["Shell Golden Oil"]?.purchaseRate || 0)
-    ).toFixed(2)}
-  </td>
+  <td>
+    {(
+      (lubeRates["Shell Advance AX-5 1L"]?.saleRate || 0) -
+      (lubeRates["Shell Advance AX-5 1L"]?.purchaseRate || 0)
+    ).toFixed(2)}
+  </td>
 
-  <td>
-    {(
-      getLubeSale("Shell Golden Oil") *
-      (
-        (lubeRates["Shell Golden Oil"]?.saleRate || 0) -
-        (lubeRates["Shell Golden Oil"]?.purchaseRate || 0)
-      )
-    ).toFixed(2)}
-  </td>
+  <td>
+    {(
+      getLubeSale("Shell Advance AX-5 1L") *
+      (
+        (lubeRates["Shell Advance AX-5 1L"]?.saleRate || 0) -
+        (lubeRates["Shell Advance AX-5 1L"]?.purchaseRate || 0)
+      )
+    ).toFixed(2)}
+  </td>
+</tr>
+
+<tr>
+  <td>Shell Golden Oil</td>
+
+  <td>
+    <input
+      type="number"
+      value={lubeData["Shell Golden Oil"]?.opening || 0}
+     readOnly
+      onChange={(e) =>
+        handleLubeChange("Shell Golden Oil", "opening", e.target.value)
+      }
+    />
+  </td>
+
+  <td>
+    <input
+      type="number"
+      value={lubeData["Shell Golden Oil"]?.received || 0}
+      onChange={(e) =>
+        handleLubeChange("Shell Golden Oil", "received", e.target.value)
+      }
+    />
+  </td>
+
+  <td>
+    <input
+      type="number"
+      value={lubeData["Shell Golden Oil"]?.closing || 0}
+      onChange={(e) =>
+        handleLubeChange("Shell Golden Oil", "closing", e.target.value)
+      }
+    />
+  </td>
+
+  <td>{getLubeSale("Shell Golden Oil")}</td>
+
+  <td>
+    <input
+      type="number"
+      value={lubeRates["Shell Golden Oil"]?.purchaseRate || 0}
+      readOnly
+    />
+  </td>
+
+  <td>
+    <input
+      type="number"
+      value={lubeRates["Shell Golden Oil"]?.saleRate || 0}
+      readOnly
+    />
+  </td>
+
+  <td>
+    {(
+      (lubeRates["Shell Golden Oil"]?.saleRate || 0) -
+      (lubeRates["Shell Golden Oil"]?.purchaseRate || 0)
+    ).toFixed(2)}
+  </td>
+
+  <td>
+    {(
+      getLubeSale("Shell Golden Oil") *
+      (
+        (lubeRates["Shell Golden Oil"]?.saleRate || 0) -
+        (lubeRates["Shell Golden Oil"]?.purchaseRate || 0)
+      )
+    ).toFixed(2)}
+  </td>
 </tr>
 
 <tr>
@@ -3570,23 +4009,23 @@ return (
 
 </tbody>
 
-        </table>
+        </table>
 
-      </div>
+      </div>
 
-            {/* ================= Daily Expense ================= */}
+            {/* ================= Daily Expense ================= */}
 
-      <div className="expense-section">
+      <div className="expense-section">
 
-        {/* Left Side */}
+        {/* Left Side */}
 
-        <div className="expense-box">
+        <div className="expense-box">
 
-          <h2>Daily Expense</h2>
+          <h2>Daily Expense</h2>
 
-          <table>
+          <table>
 
-            <tbody>
+            <tbody>
 
 <tr>
 <td>Salary</td>
@@ -3689,19 +4128,19 @@ onChange={(e)=>handleExpenseChange("Zakat & Donation",e.target.value)}
 
 </tbody>
 
-          </table>
+          </table>
 
-        </div>
+        </div>
 
-        {/* Right Side */}
+        {/* Right Side */}
 
-        <div className="expense-box">
+        <div className="expense-box">
 
-          <h2>Daily Expense</h2>
+          <h2>Daily Expense</h2>
 
-          <table>
+          <table>
 
-            <tbody>
+            <tbody>
 
 <tr>
 <td>Uniform & Repair Maintenance Exp</td>
@@ -3804,15 +4243,15 @@ onChange={(e)=>handleExpenseChange("Bank Charges ABL HBL BAF",e.target.value)}
 
 </tbody>
 
-          </table>
+          </table>
 
-        </div>
+        </div>
 
-      </div>
+      </div>
 
-            {/* ================= Daily Summary ================= */}
+            {/* ================= Daily Summary ================= */}
 
-      <div className="summary-section">
+      <div className="summary-section">
 
   {/* Fuel Profit */}
   <div className="summary-card fuel-card">
@@ -3856,8 +4295,8 @@ onChange={(e)=>handleExpenseChange("Bank Charges ABL HBL BAF",e.target.value)}
 
 </div>
 
-    </div>
-  );
+    </div>
+  );
 }
 
 export default DailySalesReport;
